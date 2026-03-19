@@ -83,5 +83,9 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	v1.GET("/emails/:id/attachments/:att_id", emailH.DownloadAttachment)
 	v1.GET("/emails/folders", emailH.ListFolders)
 
+	// Search (Phase 3 — append only, do not reorder existing routes)
+	searchH := NewSearchHandler(s, nil) // EmbeddingProvider injected later
+	v1.POST("/search", searchH.Search)
+
 	return r
 }
