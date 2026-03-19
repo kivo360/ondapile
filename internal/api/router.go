@@ -100,14 +100,9 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	oauthH := NewOAuthCallbackHandler(s, encryptionKey)
 	v1.GET("/oauth/callback/:provider", oauthH.Callback)
 
-	return r
-	v1.GET("/emails", emailH.List)
-	v1.POST("/emails", emailH.Send)
-	v1.GET("/emails/:id", emailH.Get)
-	v1.PUT("/emails/:id", emailH.Update)
-	v1.DELETE("/emails/:id", emailH.Delete)
-	v1.GET("/emails/:id/attachments/:att_id", emailH.DownloadAttachment)
-	v1.GET("/emails/folders", emailH.ListFolders)
+	// Search (Phase 3)
+	searchH := NewSearchHandler(s, nil) // EmbeddingProvider injected later
+	v1.POST("/search", searchH.Search)
 
 	return r
 }
