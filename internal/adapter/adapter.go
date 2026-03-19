@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"ondapile/internal/model"
@@ -40,7 +41,24 @@ type Provider interface {
 	SendEmail(ctx context.Context, accountID string, req SendEmailRequest) (*model.Email, error)
 	ListEmails(ctx context.Context, accountID string, opts ListEmailOpts) (*model.PaginatedList[model.Email], error)
 	GetEmail(ctx context.Context, accountID string, emailID string) (*model.Email, error)
+
+	// Calendar (only for calendar providers)
+	ListCalendars(ctx context.Context, accountID string, opts ListOpts) (*model.PaginatedList[model.Calendar], error)
+	GetCalendar(ctx context.Context, accountID string, calendarID string) (*model.Calendar, error)
+	ListEvents(ctx context.Context, accountID string, calendarID string, opts ListOpts) (*model.PaginatedList[model.CalendarEvent], error)
+	GetEvent(ctx context.Context, accountID string, calendarID string, eventID string) (*model.CalendarEvent, error)
+	CreateEvent(ctx context.Context, accountID string, calendarID string, req CreateEventRequest) (*model.CalendarEvent, error)
+	UpdateEvent(ctx context.Context, accountID string, calendarID string, eventID string, req UpdateEventRequest) (*model.CalendarEvent, error)
+	DeleteEvent(ctx context.Context, accountID string, calendarID string, eventID string) error
+
+	// OAuth (for providers that support hosted OAuth flow)
+	SupportsOAuth() bool
+	GetOAuthURL(ctx context.Context, state string) (string, error)
+	HandleOAuthCallback(ctx context.Context, code string) (map[string]string, error)
 }
+
+// ErrNotSupported is returned by adapter methods that are not applicable for the provider.
+var ErrNotSupported = fmt.Errorf("operation not supported by this provider")
 
 type AuthChallenge struct {
 	Type    string `json:"type"`    // "QR_CODE", "PAIRING_CODE", "OAUTH_URL", "CREDENTIALS"
@@ -94,4 +112,32 @@ type ListEmailOpts struct {
 	After     *time.Time
 	HasAttach *bool
 	IsRead    *bool
+}
+
+type CreateEventRequest struct {
+	Title       string                   `json:"title"`
+	Description string                   `json:"description,omitempty"`
+	Location    string                   `json:"location,omitempty"`
+	StartAt     time.Time                `json:"start_at"`
+	EndAt       time.Time                `json:"end_at"`
+	AllDay      bool                     `json:"all_day"`
+	Attendees   []model.CalendarAttendee `json:"attendees,omitempty"`
+	Reminders   []model.Reminder         `json:"reminders,omitempty"`
+	Conference  *ConferenceRequest       `json:"conference,omitempty"`
+}
+
+type UpdateEventRequest struct {
+	Title       *string                  `json:"title,omitempty"`
+	Description *string                  `json:"description,omitempty"`
+	Location    *string                  `json:"location,omitempty"`
+	StartAt     *time.Time               `json:"start_at,omitempty"`
+	EndAt       *time.Time               `json:"end_at,omitempty"`
+	AllDay      *bool                    `json:"all_day,omitempty"`
+	Attendees   []model.CalendarAttendee `json:"attendees,omitempty"`
+	Reminders   []model.Reminder         `json:"reminders,omitempty"`
+}
+
+type ConferenceRequest struct {
+	Type       string `json:"type"`
+	AutoCreate bool   `json:"auto_create"`
 }

@@ -593,3 +593,56 @@ func strPtr(s string) *string {
 
 // Ensure WhatsAppProvider implements adapter.Provider.
 var _ adapter.Provider = (*WhatsAppProvider)(nil)
+// ListCalendars is not supported by WhatsApp.
+func (p *WhatsAppProvider) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// GetCalendar is not supported by WhatsApp.
+func (p *WhatsAppProvider) GetCalendar(ctx context.Context, accountID string, calendarID string) (*model.Calendar, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ListEvents is not supported by WhatsApp.
+func (p *WhatsAppProvider) ListEvents(ctx context.Context, accountID string, calendarID string, opts adapter.ListOpts) (*model.PaginatedList[model.CalendarEvent], error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// GetEvent is not supported by WhatsApp.
+func (p *WhatsAppProvider) GetEvent(ctx context.Context, accountID string, calendarID string, eventID string) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// CreateEvent is not supported by WhatsApp.
+func (p *WhatsAppProvider) CreateEvent(ctx context.Context, accountID string, calendarID string, req adapter.CreateEventRequest) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEvent is not supported by WhatsApp.
+func (p *WhatsAppProvider) UpdateEvent(ctx context.Context, accountID string, calendarID string, eventID string, req adapter.UpdateEventRequest) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// DeleteEvent is not supported by WhatsApp.
+func (p *WhatsAppProvider) DeleteEvent(ctx context.Context, accountID string, calendarID string, eventID string) error {
+	return adapter.ErrNotSupported
+}
+
+// SupportsOAuth returns false as WhatsApp uses QR code authentication.
+func (p *WhatsAppProvider) SupportsOAuth() bool {
+	return false
+}
+
+// GetOAuthURL is not supported by WhatsApp.
+func (p *WhatsAppProvider) GetOAuthURL(ctx context.Context, state string) (string, error) {
+	return "", adapter.ErrNotSupported
+}
+
+// HandleOAuthCallback is not supported by WhatsApp.
+func (p *WhatsAppProvider) HandleOAuthCallback(ctx context.Context, code string) (map[string]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// Ensure WhatsAppProvider implements adapter.Provider.
+var _ adapter.Provider = (*WhatsAppProvider)(nil)
+var _ adapter.Provider = (*WhatsAppProvider)(nil)

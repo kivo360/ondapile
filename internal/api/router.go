@@ -83,5 +83,31 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	v1.GET("/emails/:id/attachments/:att_id", emailH.DownloadAttachment)
 	v1.GET("/emails/folders", emailH.ListFolders)
 
+	// Calendar routes
+	calH := NewCalendarHandler(s)
+	v1.GET("/calendars", calH.List)
+	v1.GET("/calendars/:id", calH.Get)
+	v1.GET("/calendars/:id/events", calH.ListEvents)
+	v1.POST("/calendars/:id/events", calH.CreateEvent)
+	v1.GET("/calendars/:id/events/:event_id", calH.GetEvent)
+	v1.PATCH("/calendars/:id/events/:event_id", calH.UpdateEvent)
+	v1.DELETE("/calendars/:id/events/:event_id", calH.DeleteEvent)
+
+	// OAuth routes
+	hostedAuthH := NewHostedAuthHandler(s, encryptionKey)
+	v1.POST("/accounts/hosted-auth", hostedAuthH.Create)
+
+	oauthH := NewOAuthCallbackHandler(s, encryptionKey)
+	v1.GET("/oauth/callback/:provider", oauthH.Callback)
+
+	return r
+	v1.GET("/emails", emailH.List)
+	v1.POST("/emails", emailH.Send)
+	v1.GET("/emails/:id", emailH.Get)
+	v1.PUT("/emails/:id", emailH.Update)
+	v1.DELETE("/emails/:id", emailH.Delete)
+	v1.GET("/emails/:id/attachments/:att_id", emailH.DownloadAttachment)
+	v1.GET("/emails/folders", emailH.ListFolders)
+
 	return r
 }

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -31,4 +34,23 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 
 func (s *Store) Close() {
 	s.Pool.Close()
+}
+
+// RunMigrations runs database migrations from the migrations directory.
+func RunMigrations(dsn string) error {
+	// The migrate library expects a URL format
+	// pgx5://user:password@host:port/dbname?sslmode=disable
+	m, err := migrate.New(
+		"file://migrations",
+		"pgx5://"+dsn,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
 }

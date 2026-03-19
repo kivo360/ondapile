@@ -313,5 +313,37 @@ func (m *MockProvider) GetEmail(ctx context.Context, accountID string, emailID s
 	}, nil
 }
 
-// Ensure MockProvider implements Provider interface
+// Calendar stubs — not supported by mock provider.
+func (m *MockProvider) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) GetCalendar(ctx context.Context, accountID string, calendarID string) (*model.Calendar, error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) ListEvents(ctx context.Context, accountID string, calendarID string, opts adapter.ListOpts) (*model.PaginatedList[model.CalendarEvent], error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) GetEvent(ctx context.Context, accountID string, calendarID string, eventID string) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) CreateEvent(ctx context.Context, accountID string, calendarID string, req adapter.CreateEventRequest) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) UpdateEvent(ctx context.Context, accountID string, calendarID string, eventID string, req adapter.UpdateEventRequest) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) DeleteEvent(ctx context.Context, accountID string, calendarID string, eventID string) error {
+	return adapter.ErrNotSupported
+}
+
+// OAuth stubs — not supported by mock provider.
+func (m *MockProvider) SupportsOAuth() bool { return false }
+func (m *MockProvider) GetOAuthURL(ctx context.Context, state string) (string, error) {
+	return "", adapter.ErrNotSupported
+}
+func (m *MockProvider) HandleOAuthCallback(ctx context.Context, code string) (map[string]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// Ensure MockProvider implements Provider interface.
 var _ adapter.Provider = (*MockProvider)(nil)

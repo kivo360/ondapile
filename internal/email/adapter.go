@@ -928,3 +928,56 @@ func (a *Adapter) pollNewMessages(ctx context.Context, accountID string, client 
 
 	return nil
 }
+
+// ListCalendars is not supported by IMAP email.
+func (a *Adapter) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// GetCalendar is not supported by IMAP email.
+func (a *Adapter) GetCalendar(ctx context.Context, accountID string, calendarID string) (*model.Calendar, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ListEvents is not supported by IMAP email.
+func (a *Adapter) ListEvents(ctx context.Context, accountID string, calendarID string, opts adapter.ListOpts) (*model.PaginatedList[model.CalendarEvent], error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// GetEvent is not supported by IMAP email.
+func (a *Adapter) GetEvent(ctx context.Context, accountID string, calendarID string, eventID string) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// CreateEvent is not supported by IMAP email.
+func (a *Adapter) CreateEvent(ctx context.Context, accountID string, calendarID string, req adapter.CreateEventRequest) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEvent is not supported by IMAP email.
+func (a *Adapter) UpdateEvent(ctx context.Context, accountID string, calendarID string, eventID string, req adapter.UpdateEventRequest) (*model.CalendarEvent, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// DeleteEvent is not supported by IMAP email.
+func (a *Adapter) DeleteEvent(ctx context.Context, accountID string, calendarID string, eventID string) error {
+	return adapter.ErrNotSupported
+}
+
+// SupportsOAuth returns false as IMAP email uses credentials-based authentication.
+func (a *Adapter) SupportsOAuth() bool {
+	return false
+}
+
+// GetOAuthURL is not supported by IMAP email.
+func (a *Adapter) GetOAuthURL(ctx context.Context, state string) (string, error) {
+	return "", adapter.ErrNotSupported
+}
+
+// HandleOAuthCallback is not supported by IMAP email.
+func (a *Adapter) HandleOAuthCallback(ctx context.Context, code string) (map[string]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// Ensure Adapter implements adapter.Provider.
+var _ adapter.Provider = (*Adapter)(nil)

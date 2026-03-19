@@ -13,6 +13,9 @@ type Config struct {
 	APIKey        string
 	EncryptionKey []byte
 	WhatsApp      WhatsAppConfig
+	Google        GoogleOAuthConfig
+	Microsoft     MicrosoftOAuthConfig
+	LinkedIn      LinkedInOAuthConfig
 	LogLevel      string
 }
 
@@ -41,6 +44,28 @@ type WhatsAppConfig struct {
 	DeviceStorePath string
 }
 
+// GoogleOAuthConfig holds Google OAuth configuration.
+type GoogleOAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+}
+
+// MicrosoftOAuthConfig holds Microsoft OAuth configuration.
+type MicrosoftOAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+	TenantID     string
+}
+
+// LinkedInOAuthConfig holds LinkedIn OAuth configuration.
+type LinkedInOAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+}
+
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
@@ -65,6 +90,22 @@ func Load() (*Config, error) {
 		WhatsApp: WhatsAppConfig{
 			DeviceStorePath: getEnv("WA_DEVICE_STORE_PATH", "./devices"),
 		},
+		Google: GoogleOAuthConfig{
+			ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+			ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+			RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", ""),
+		},
+		Microsoft: MicrosoftOAuthConfig{
+			ClientID:     getEnv("MICROSOFT_CLIENT_ID", ""),
+			ClientSecret: getEnv("MICROSOFT_CLIENT_SECRET", ""),
+			RedirectURL:  getEnv("MICROSOFT_REDIRECT_URL", ""),
+			TenantID:     getEnv("MICROSOFT_TENANT_ID", ""),
+		},
+		LinkedIn: LinkedInOAuthConfig{
+			ClientID:     getEnv("LINKEDIN_CLIENT_ID", ""),
+			ClientSecret: getEnv("LINKEDIN_CLIENT_SECRET", ""),
+			RedirectURL:  getEnv("LINKEDIN_REDIRECT_URL", ""),
+		},
 		LogLevel: getEnv("LOG_LEVEL", "info"),
 	}
 
@@ -83,6 +124,14 @@ func (d *DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		d.Host, d.Port, d.User, d.Password, d.Name, d.SSLMode,
+	)
+}
+
+// DSNURL returns the database connection string in URL format for migrations.
+func (d *DatabaseConfig) DSNURL() string {
+	return fmt.Sprintf(
+		"%s:%s@%s:%d/%s?sslmode=%s",
+		d.User, d.Password, d.Host, d.Port, d.Name, d.SSLMode,
 	)
 }
 
