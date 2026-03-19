@@ -12,11 +12,13 @@ type Config struct {
 	Redis         RedisConfig
 	APIKey        string
 	EncryptionKey []byte
-	WhatsApp      WhatsAppConfig
-	Google        GoogleOAuthConfig
-	Microsoft     MicrosoftOAuthConfig
+WhatsApp      WhatsAppConfig
+Google        GoogleOAuthConfig
+Microsoft     MicrosoftOAuthConfig
 	LinkedIn      LinkedInOAuthConfig
-	LogLevel      string
+	Instagram     InstagramConfig
+	Telegram      TelegramConfig
+LogLevel      string
 }
 
 type ServerConfig struct {
@@ -61,9 +63,21 @@ type MicrosoftOAuthConfig struct {
 
 // LinkedInOAuthConfig holds LinkedIn OAuth configuration.
 type LinkedInOAuthConfig struct {
+ClientID     string
+ClientSecret string
+RedirectURL  string
+}
+
+// InstagramConfig holds Instagram OAuth configuration.
+type InstagramConfig struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURL  string
+}
+
+// TelegramConfig holds Telegram Bot configuration.
+type TelegramConfig struct {
+	BotToken string
 }
 
 func Load() (*Config, error) {
@@ -101,12 +115,20 @@ func Load() (*Config, error) {
 			RedirectURL:  getEnv("MICROSOFT_REDIRECT_URL", ""),
 			TenantID:     getEnv("MICROSOFT_TENANT_ID", ""),
 		},
-		LinkedIn: LinkedInOAuthConfig{
-			ClientID:     getEnv("LINKEDIN_CLIENT_ID", ""),
-			ClientSecret: getEnv("LINKEDIN_CLIENT_SECRET", ""),
-			RedirectURL:  getEnv("LINKEDIN_REDIRECT_URL", ""),
+LinkedIn: LinkedInOAuthConfig{
+ClientID:     getEnv("LINKEDIN_CLIENT_ID", ""),
+ClientSecret: getEnv("LINKEDIN_CLIENT_SECRET", ""),
+RedirectURL:  getEnv("LINKEDIN_REDIRECT_URL", ""),
 		},
-		LogLevel: getEnv("LOG_LEVEL", "info"),
+		Instagram: InstagramConfig{
+			ClientID:     getEnv("INSTAGRAM_CLIENT_ID", ""),
+			ClientSecret: getEnv("INSTAGRAM_CLIENT_SECRET", ""),
+			RedirectURL:  getEnv("INSTAGRAM_REDIRECT_URL", ""),
+		},
+		Telegram: TelegramConfig{
+			BotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+		},
+LogLevel: getEnv("LOG_LEVEL", "info"),
 	}
 
 	// Derive encryption key from passphrase (or generate a default for dev)

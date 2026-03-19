@@ -6,3 +6,10 @@ conduit
 ondapile
 files.zip
 .sisyphus/
+
+# Frontend
+frontend/node_modules/
+frontend/.output/
+frontend/.vinxi/
+frontend/dist/
+frontend/*.db
