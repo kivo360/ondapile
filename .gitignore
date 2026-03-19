@@ -13,3 +13,4 @@ frontend/.output/
 frontend/.vinxi/
 frontend/dist/
 frontend/*.db
+credentials/

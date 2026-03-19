@@ -326,15 +326,13 @@ func (a *GmailAdapter) ListEmails(ctx context.Context, accountID string, opts ad
 
 	query := buildGmailQuery(opts)
 
-	path := "/messages"
+	params := []string{}
 	if query != "" {
-		path = fmt.Sprintf("/messages?q=%s", query)
+		params = append(params, fmt.Sprintf("q=%s", query))
 	}
-
 	if opts.Cursor != "" {
-		path = fmt.Sprintf("%s&pageToken=%s", path, opts.Cursor)
+		params = append(params, fmt.Sprintf("pageToken=%s", opts.Cursor))
 	}
-
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 25
@@ -342,7 +340,8 @@ func (a *GmailAdapter) ListEmails(ctx context.Context, accountID string, opts ad
 	if limit > 100 {
 		limit = 100
 	}
-	path = fmt.Sprintf("%s&maxResults=%d", path, limit)
+	params = append(params, fmt.Sprintf("maxResults=%d", limit))
+	path := fmt.Sprintf("/messages?%s", strings.Join(params, "&"))
 
 	var result map[string]interface{}
 	if err := gmailGet(client, path, &result); err != nil {

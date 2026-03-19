@@ -12,6 +12,17 @@ import (
 	"ondapile/internal/store"
 )
 
+// mapCallbackProvider maps OAuth callback URL provider names to registered adapter names.
+var callbackProviderMap = map[string]string{
+	"google":    "GMAIL",
+	"gmail":     "GMAIL",
+	"microsoft": "OUTLOOK",
+	"outlook":   "OUTLOOK",
+	"linkedin":  "LINKEDIN",
+	"instagram": "INSTAGRAM",
+	"telegram":  "TELEGRAM",
+}
+
 type OAuthCallbackHandler struct {
 	store         *store.Store
 	accounts      *store.AccountStore
@@ -37,8 +48,12 @@ func (h *OAuthCallbackHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Get provider adapter
-	prov, err := adapter.Get(provider)
+	// Map URL provider name to registered adapter name
+	adapterName := provider
+	if mapped, ok := callbackProviderMap[provider]; ok {
+		adapterName = mapped
+	}
+	prov, err := adapter.Get(adapterName)
 	if err != nil {
 		ProviderError(c, "Provider not available: "+provider)
 		return
@@ -64,7 +79,7 @@ func (h *OAuthCallbackHandler) Callback(c *gin.Context) {
 	}
 
 	// Check if account already exists
-	existing, _ := h.accounts.GetByProviderIdentifier(c.Request.Context(), provider, identifier)
+	existing, _ := h.accounts.GetByProviderIdentifier(c.Request.Context(), adapterName, identifier)
 	if existing != nil {
 		// Update existing account
 		if err := h.accounts.UpdateStatus(c.Request.Context(), existing.ID, model.StatusConnecting, nil); err != nil {
@@ -77,9 +92,9 @@ func (h *OAuthCallbackHandler) Callback(c *gin.Context) {
 			name = identifier
 		}
 
-		caps := getProviderCapabilities(provider)
+		caps := getProviderCapabilities(adapterName)
 		account, err := h.accounts.Create(c.Request.Context(), store.CreateAccountParams{
-			Provider:     provider,
+			Provider:     adapterName,
 			Name:         name,
 			Identifier:   identifier,
 			Status:       string(model.StatusOperational),
