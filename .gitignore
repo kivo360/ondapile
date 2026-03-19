@@ -1,0 +1,8 @@
+.env
+devices/
+*.db
+*.exe
+conduit
+ondapile
+files.zip
+.sisyphus/
