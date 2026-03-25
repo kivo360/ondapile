@@ -3,12 +3,14 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 
+	"ondapile/internal/email"
 	"ondapile/internal/store"
+	"ondapile/internal/tracking"
 	"ondapile/internal/webhook"
 )
 
 // Router sets up all API routes.
-func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey []byte) *gin.Engine {
+func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey []byte, baseURL string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -26,6 +28,17 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 		c.Data(200, "text/html; charset=utf-8", []byte(`<!DOCTYPE html><html><head><title>Ondapile</title><style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f8f9fa}div{text-align:center}h1{color:#22c55e;font-size:3rem}p{color:#666;font-size:1.2rem}</style></head><body><div><h1>✅</h1><h2>Account Connected</h2><p>You can close this window.</p></div></body></html>`))
 	})
 
+	// Initialize email store for tracking
+	emailStore := email.NewEmailStore(s)
+
+	// Public tracking routes (no auth required - these are hit by email clients)
+	// Note: baseURL may be empty in test environments; tracking will use relative URLs
+	if baseURL != "" {
+		trackingHandler := tracking.NewTracker(emailStore, w, baseURL)
+		r.GET("/t/:id", trackingHandler.HandlePixel)
+		r.GET("/l/:id", trackingHandler.HandleLink)
+	}
+
 	// API v1 — all require auth
 	apiKeyStore := store.NewApiKeyStore(s)
 	v1 := r.Group("/api/v1", DualAuthMiddleware(apiKeyStore, apiKey))
@@ -35,7 +48,7 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	chatH := NewChatHandler(s)
 	msgH := NewMessageHandler(s)
 	whH := NewWebhookHandler(s)
-	emailH := NewEmailHandler(s)
+	emailH := NewEmailHandler(s, w)
 	attendeeH := NewAttendeeHandler(s)
 
 	// Accounts
