@@ -69,7 +69,7 @@ func TestAuditLogAPI_OrgScoped(t *testing.T) {
 		Detail: json.RawMessage(`{}`),
 	})
 
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	req, _ := http.NewRequest("GET", "/api/v1/audit-log", nil)
 	req.Header.Set("Authorization", "Bearer "+rawKey)
@@ -96,7 +96,7 @@ func TestAuditLogAPI_EmptyWithStaticKey(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx, testDBPool)
 	s := setupTestDB(t)
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	req, _ := http.NewRequest("GET", "/api/v1/audit-log", nil)
 	req.Header.Set("X-API-KEY", testAPIKey)

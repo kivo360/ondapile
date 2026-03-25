@@ -294,7 +294,7 @@ func TestAccountsListWithLegacyAuth(t *testing.T) {
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
 
 	// Use the standard router with AuthMiddleware (not ApiKeyMiddleware)
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Create an account using the legacy auth
 	body := `{"provider": "MOCK", "identifier": "legacy-test", "name": "Legacy Test Account"}`
@@ -325,7 +325,7 @@ func TestWebhooksListWithLegacyAuth(t *testing.T) {
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
 
 	// Use the standard router with AuthMiddleware (not ApiKeyMiddleware)
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Create a webhook using the legacy auth
 	body := `{"url": "https://example.com/webhook", "events": ["message.received"]}`

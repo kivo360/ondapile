@@ -16,7 +16,7 @@ import (
 func TestDualAuth_StaticKeyStillWorks(t *testing.T) {
 	truncateTables(context.Background(), testDBPool)
 	s := setupTestDB(t)
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	req, _ := http.NewRequest("GET", "/api/v1/accounts", nil)
 	req.Header.Set("X-API-KEY", testAPIKey)
@@ -46,7 +46,7 @@ func TestDualAuth_BetterAuthKeyWorks(t *testing.T) {
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		"acc_dual", "google", "Dual Test", "dual@test.com", "OPERATIONAL", "org_dual")
 
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	req, _ := http.NewRequest("GET", "/api/v1/accounts", nil)
 	req.Header.Set("Authorization", "Bearer "+rawKey)
@@ -68,7 +68,7 @@ func TestDualAuth_BetterAuthKeyWorks(t *testing.T) {
 func TestDualAuth_InvalidKeyRejected(t *testing.T) {
 	truncateTables(context.Background(), testDBPool)
 	s := setupTestDB(t)
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	req, _ := http.NewRequest("GET", "/api/v1/accounts", nil)
 	req.Header.Set("Authorization", "Bearer sk_live_invalid")
@@ -83,7 +83,7 @@ func TestDualAuth_InvalidKeyRejected(t *testing.T) {
 func TestDualAuth_BearerTokenWithStaticKey(t *testing.T) {
 	truncateTables(context.Background(), testDBPool)
 	s := setupTestDB(t)
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	// Static key sent via Bearer token should also work
 	req, _ := http.NewRequest("GET", "/api/v1/accounts", nil)
@@ -99,7 +99,7 @@ func TestDualAuth_BearerTokenWithStaticKey(t *testing.T) {
 func TestDualAuth_NoKeyRejected(t *testing.T) {
 	truncateTables(context.Background(), testDBPool)
 	s := setupTestDB(t)
-	router := api.Router(s, nil, testAPIKey, testEncryptionKey)
+	router := api.Router(s, nil, testAPIKey, testEncryptionKey, "")
 
 	req, _ := http.NewRequest("GET", "/api/v1/accounts", nil)
 	// No key at all

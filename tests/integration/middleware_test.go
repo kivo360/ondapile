@@ -28,7 +28,7 @@ func TestAuthRequired(t *testing.T) {
 	s := &store.Store{Pool: testDBPool}
 	webhookStore := store.NewWebhookStore(s)
 	dispatcher := webhook.NewDispatcher(webhookStore)
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Request without API key
 	req := httptest.NewRequest("GET", "/api/v1/accounts", nil)
@@ -57,7 +57,7 @@ func TestAuthInvalidKey(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Request with wrong API key
 	req := httptest.NewRequest("GET", "/api/v1/accounts", nil)
@@ -86,7 +86,7 @@ func TestAuthValidKey(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Request with correct API key
 	req := httptest.NewRequest("GET", "/api/v1/accounts", nil)
@@ -115,7 +115,7 @@ func TestAuthQueryParam(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Request with API key as query parameter (for browser img tags)
 	req := httptest.NewRequest("GET", "/api/v1/accounts?key="+testAPIKey, nil)
@@ -143,7 +143,7 @@ func TestRateLimitHeaders(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	req := httptest.NewRequest("GET", "/api/v1/accounts", nil)
 	req.Header.Set("X-API-KEY", testAPIKey)
@@ -177,7 +177,7 @@ func TestCORSHeaders(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Test preflight OPTIONS request
 	req := httptest.NewRequest("OPTIONS", "/api/v1/accounts", nil)
@@ -211,7 +211,7 @@ func TestCORSHeadersOnRegularRequest(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	req := httptest.NewRequest("GET", "/api/v1/accounts", nil)
 	req.Header.Set("X-API-KEY", testAPIKey)
@@ -236,7 +236,7 @@ func TestHealthEndpointNoAuth(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Health endpoint without API key
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -258,7 +258,7 @@ func TestRateLimitExceeded(t *testing.T) {
 
 	s := &store.Store{Pool: testDBPool}
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	router := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "")
 
 	// Make 105 requests (burst is 100)
 	var lastStatus int
