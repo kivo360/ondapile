@@ -45,6 +45,34 @@ func (h *CalendarHandler) List(c *gin.Context) {
 		return
 	}
 
+	// If DB is empty and account_id specified, try fetching from provider
+	if len(calendars) == 0 && accountID != "" {
+		accounts := store.NewAccountStore(h.store)
+		account, aErr := accounts.GetByID(c.Request.Context(), accountID)
+		if aErr == nil && account != nil {
+			// Try calendar-capable providers for this account
+			for _, provName := range []string{"GOOGLE_CALENDAR", "OUTLOOK", account.Provider} {
+				prov, pErr := adapter.Get(provName)
+				if pErr != nil {
+					continue
+				}
+				result, lErr := prov.ListCalendars(c.Request.Context(), accountID, adapter.ListOpts{Limit: limit})
+				if lErr != nil {
+					slog.Warn("failed to fetch calendars from provider", "provider", provName, "error", lErr)
+					continue
+				}
+				if result != nil && len(result.Items) > 0 {
+					items := make([]any, len(result.Items))
+					for i, cal := range result.Items {
+						items[i] = cal
+					}
+					c.JSON(http.StatusOK, model.NewPaginatedList(items, result.Cursor, result.HasMore))
+					return
+				}
+			}
+		}
+	}
+
 	items := make([]any, len(calendars))
 	for i, cal := range calendars {
 		items[i] = cal

@@ -51,7 +51,7 @@ func (a *GmailAdapter) GetOAuthURL(ctx context.Context, state string) (string, e
 		return "", fmt.Errorf("OAuth config not initialized")
 	}
 
-	return a.oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
+	return a.oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent")), nil
 }
 
 // HandleOAuthCallback exchanges the authorization code for a token.

@@ -56,16 +56,18 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Create account record
+// Create account record
 	caps := getProviderCapabilities(req.Provider)
+	orgID := c.GetString("organization_id")
 	account, err := h.accounts.Create(c.Request.Context(), store.CreateAccountParams{
-		Provider:     req.Provider,
-		Name:         req.Name,
-		Identifier:   req.Identifier,
-		Status:       string(model.StatusConnecting),
-		Capabilities: caps,
-		Proxy:        req.Proxy,
-		Metadata:     map[string]any{},
+		Provider:       req.Provider,
+		Name:           req.Name,
+		Identifier:     req.Identifier,
+		Status:         string(model.StatusConnecting),
+		Capabilities:   caps,
+		Proxy:          req.Proxy,
+		Metadata:       map[string]any{},
+		OrganizationID: orgID,
 	})
 	if err != nil {
 		Internal(c, "Failed to create account")
@@ -103,6 +105,27 @@ func (h *AccountHandler) Create(c *gin.Context) {
 
 // GET /accounts
 func (h *AccountHandler) List(c *gin.Context) {
+	// Check for organization_id in context (set by ApiKeyMiddleware)
+	orgID := c.GetString("organization_id")
+	if orgID != "" {
+		// Use organization-scoped query
+		accounts, err := h.accounts.ListByOrganization(c.Request.Context(), orgID)
+		if err != nil {
+			Internal(c, "Failed to list accounts")
+			return
+		}
+
+		// Convert to []any for paginated list
+		items := make([]any, len(accounts))
+		for i, a := range accounts {
+			items[i] = a
+		}
+
+		c.JSON(http.StatusOK, model.NewPaginatedList(items, "", false))
+		return
+	}
+
+	// Fall back to existing behavior for backward compatibility (AuthMiddleware path)
 	f := GetProviderFilter(c)
 	p := GetPagination(c)
 

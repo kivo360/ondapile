@@ -20,13 +20,14 @@ func NewAccountStore(s *Store) *AccountStore {
 }
 
 type CreateAccountParams struct {
-	Provider     string
-	Name         string
-	Identifier   string
-	Status       string
-	Capabilities []string
-	Proxy        *model.ProxyConfig
-	Metadata     map[string]any
+	Provider       string
+	Name           string
+	Identifier     string
+	Status         string
+	Capabilities   []string
+	Proxy          *model.ProxyConfig
+	Metadata       map[string]any
+	OrganizationID string
 }
 
 func (as *AccountStore) Create(ctx context.Context, p CreateAccountParams) (*model.Account, error) {
@@ -37,14 +38,14 @@ func (as *AccountStore) Create(ctx context.Context, p CreateAccountParams) (*mod
 		proxyJSON, _ = json.Marshal(p.Proxy)
 	}
 
-	q := `INSERT INTO accounts (provider, name, identifier, status, capabilities, proxy_config, metadata)
-	      VALUES ($1, $2, $3, $4, $5, $6, $7)
+	q := `INSERT INTO accounts (provider, name, identifier, status, capabilities, proxy_config, metadata, organization_id)
+	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	      RETURNING id, provider, name, identifier, status, status_detail, capabilities, created_at, updated_at, last_synced_at, metadata, proxy_config`
 
 	var a model.Account
 	var proxyData []byte
 	err := as.s.Pool.QueryRow(ctx, q,
-		p.Provider, p.Name, p.Identifier, p.Status, caps, proxyJSON, meta,
+		p.Provider, p.Name, p.Identifier, p.Status, caps, proxyJSON, meta, p.OrganizationID,
 	).Scan(&a.ID, &a.Provider, &a.Name, &a.Identifier, &a.Status,
 		&a.StatusDetail, &a.Capabilities, &a.CreatedAt, &a.UpdatedAt,
 		&a.LastSyncedAt, &a.Metadata, &proxyData)
@@ -255,6 +256,36 @@ func (as *AccountStore) GetCredentialsEnc(ctx context.Context, id string) ([]byt
 		return nil, err
 	}
 	return creds, nil
+}
+// ListByOrganization returns accounts filtered by organization_id.
+func (as *AccountStore) ListByOrganization(ctx context.Context, organizationID string) ([]*model.Account, error) {
+	q := `SELECT id, provider, name, identifier, status, status_detail, capabilities,
+            created_at, updated_at, last_synced_at, metadata, proxy_config
+      FROM accounts WHERE organization_id = $1 ORDER BY created_at DESC`
+
+rows, err := as.s.Pool.Query(ctx, q, organizationID)
+if err != nil {
+return nil, err
+}
+defer rows.Close()
+
+var accounts []*model.Account
+for rows.Next() {
+var a model.Account
+var proxyData []byte
+if err := rows.Scan(&a.ID, &a.Provider, &a.Name, &a.Identifier, &a.Status,
+&a.StatusDetail, &a.Capabilities, &a.CreatedAt, &a.UpdatedAt,
+&a.LastSyncedAt, &a.Metadata, &proxyData); err != nil {
+return nil, err
+}
+if len(proxyData) > 0 {
+json.Unmarshal(proxyData, &a.Proxy)
+}
+a.Object = "account"
+accounts = append(accounts, &a)
+}
+
+return accounts, nil
 }
 
 // mock time usage

@@ -3,12 +3,15 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	oauth2lib "golang.org/x/oauth2"
 
 	"ondapile/internal/adapter"
 	"ondapile/internal/config"
 	"ondapile/internal/model"
+	"ondapile/internal/oauth"
 	"ondapile/internal/store"
 )
 
@@ -118,6 +121,26 @@ func (h *OAuthCallbackHandler) Callback(c *gin.Context) {
 			if storeErr := h.accounts.UpdateCredentials(c.Request.Context(), existing.ID, encCreds); storeErr != nil {
 				slog.Warn("failed to store encrypted credentials", "error", storeErr)
 			}
+		}
+	}
+
+	// Also save to oauth_tokens table for adapter token lookup
+	if creds["access_token"] != "" {
+		tokenStore := oauth.NewTokenStore(h.store, h.encryptionKey)
+		oauthToken := &oauth2lib.Token{
+			AccessToken:  creds["access_token"],
+			RefreshToken: creds["refresh_token"],
+			TokenType:    creds["token_type"],
+		}
+		if expStr, ok := creds["expiry"]; ok && expStr != "" {
+			if exp, pErr := time.Parse(time.RFC3339, expStr); pErr == nil {
+				oauthToken.Expiry = exp
+			}
+		}
+		if saveErr := tokenStore.Save(c.Request.Context(), existing.ID, adapterName, oauthToken); saveErr != nil {
+			slog.Warn("failed to save oauth token", "error", saveErr)
+		} else {
+			slog.Info("saved oauth token", "account_id", existing.ID, "provider", adapterName)
 		}
 	}
 

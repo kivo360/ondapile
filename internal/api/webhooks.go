@@ -24,7 +24,19 @@ func NewWebhookHandler(s *store.Store) *WebhookHandler {
 
 // GET /webhooks
 func (h *WebhookHandler) List(c *gin.Context) {
-	webhooks, err := h.webhooks.List(c.Request.Context())
+	// Check for organization_id in context (set by ApiKeyMiddleware)
+	orgID := c.GetString("organization_id")
+	var webhooks []*model.Webhook
+	var err error
+
+	if orgID != "" {
+		// Use organization-scoped query
+		webhooks, err = h.webhooks.ListByOrganization(c.Request.Context(), orgID)
+	} else {
+		// Fall back to existing behavior for backward compatibility
+		webhooks, err = h.webhooks.List(c.Request.Context())
+	}
+
 	if err != nil {
 		Internal(c, "Failed to list webhooks")
 		return
@@ -54,7 +66,19 @@ func (h *WebhookHandler) Create(c *gin.Context) {
 		req.Secret = generateWebhookSecret()
 	}
 
-	webhook, err := h.webhooks.Create(c.Request.Context(), req.URL, req.Events, req.Secret)
+	// Check for organization_id in context (set by ApiKeyMiddleware)
+	orgID := c.GetString("organization_id")
+	var webhook *model.Webhook
+	var err error
+
+	if orgID != "" {
+		// Use organization-scoped creation
+		webhook, err = h.webhooks.CreateWithOrg(c.Request.Context(), req.URL, req.Events, req.Secret, orgID)
+	} else {
+		// Fall back to existing behavior for backward compatibility
+		webhook, err = h.webhooks.Create(c.Request.Context(), req.URL, req.Events, req.Secret)
+	}
+
 	if err != nil {
 		Internal(c, "Failed to create webhook")
 		return

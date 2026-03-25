@@ -36,6 +36,25 @@ func (ws *WebhookStore) Create(ctx context.Context, url string, events []string,
 	return &w, nil
 }
 
+// CreateWithOrg creates a webhook with an associated organization_id.
+func (ws *WebhookStore) CreateWithOrg(ctx context.Context, url string, events []string, secret, organizationID string) (*model.Webhook, error) {
+	eventsJSON, _ := json.Marshal(events)
+
+	q := `INSERT INTO webhooks (url, events, secret, organization_id)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id, url, events, secret, active, created_at`
+
+	var w model.Webhook
+	err := ws.s.Pool.QueryRow(ctx, q, url, eventsJSON, secret, organizationID).Scan(
+		&w.ID, &w.URL, &w.Events, &w.Secret, &w.Active, &w.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	w.Object = "webhook"
+	return &w, nil
+}
+
 func (ws *WebhookStore) GetByID(ctx context.Context, id string) (*model.Webhook, error) {
 	q := `SELECT id, url, events, secret, active, created_at FROM webhooks WHERE id = $1`
 
@@ -81,6 +100,29 @@ func (ws *WebhookStore) ListActiveForEvent(ctx context.Context, event string) ([
 	      WHERE active = true AND events @> $1::jsonb`
 
 	rows, err := ws.s.Pool.Query(ctx, q, `["`+event+`"]`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var webhooks []*model.Webhook
+	for rows.Next() {
+		var w model.Webhook
+		if err := rows.Scan(&w.ID, &w.URL, &w.Events, &w.Secret, &w.Active, &w.CreatedAt); err != nil {
+			return nil, err
+		}
+		w.Object = "webhook"
+		webhooks = append(webhooks, &w)
+	}
+
+	return webhooks, nil
+}
+
+// ListByOrganization returns webhooks filtered by organization_id.
+func (ws *WebhookStore) ListByOrganization(ctx context.Context, organizationID string) ([]*model.Webhook, error) {
+	q := `SELECT id, url, events, secret, active, created_at FROM webhooks WHERE organization_id = $1 ORDER BY created_at DESC`
+
+	rows, err := ws.s.Pool.Query(ctx, q, organizationID)
 	if err != nil {
 		return nil, err
 	}

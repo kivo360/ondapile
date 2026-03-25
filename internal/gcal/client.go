@@ -15,14 +15,16 @@ const gcalAPIBaseURL = "https://www.googleapis.com/calendar/v3"
 
 // httpClient creates an HTTP client with OAuth authentication for the given account.
 func (a *GCalAdapter) httpClient(ctx context.Context, accountID string) (*http.Client, error) {
+	// Try loading token under GOOGLE_CALENDAR first, fall back to GMAIL (shared OAuth)
 	token, err := a.tokenStore.Load(ctx, accountID, a.Name())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get token: %w", err)
+	if err != nil || token == nil {
+		token, err = a.tokenStore.Load(ctx, accountID, "GMAIL")
+		if err != nil || token == nil {
+			return nil, fmt.Errorf("failed to get token: no token found for %s", accountID)
+		}
 	}
 
-	// Create token source that handles automatic refresh
 	tokenSource := a.oauthCfg.TokenSource(ctx, token)
-
 	return oauth2.NewClient(ctx, tokenSource), nil
 }
 

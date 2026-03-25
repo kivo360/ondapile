@@ -69,6 +69,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		"003_create_messages.sql",
 		"004_create_webhooks.sql",
 		"005_create_attendees_and_emails.sql",
+		"011_create_audit_log.sql",
 	}
 
 	for _, filename := range migrationFiles {
@@ -127,6 +128,8 @@ func truncateTables(ctx context.Context, pool *pgxpool.Pool) error {
 		"emails",
 		"attendees",
 		"accounts",
+		"apikey",
+		"audit_log",
 	}
 
 	for _, table := range tables {
