@@ -10,17 +10,20 @@ import (
 	"ondapile/internal/email"
 	"ondapile/internal/model"
 	"ondapile/internal/store"
+	"ondapile/internal/webhook"
 )
 
 type EmailHandler struct {
-	store  *store.Store
-	emails *email.EmailStore
+	store      *store.Store
+	emails     *email.EmailStore
+	dispatcher *webhook.Dispatcher
 }
 
-func NewEmailHandler(s *store.Store) *EmailHandler {
+func NewEmailHandler(s *store.Store, d *webhook.Dispatcher) *EmailHandler {
 	return &EmailHandler{
-		store:  s,
-		emails: email.NewEmailStore(s),
+		store:      s,
+		emails:     email.NewEmailStore(s),
+		dispatcher: d,
 	}
 }
 
@@ -385,6 +388,10 @@ func (h *EmailHandler) Reply(c *gin.Context) {
 		return
 	}
 
+	if h.dispatcher != nil {
+		h.dispatcher.Dispatch(c.Request.Context(), model.EventEmailSent, result)
+	}
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -432,6 +439,10 @@ func (h *EmailHandler) Forward(c *gin.Context) {
 	if err != nil {
 		ProviderError(c, "Failed to forward: "+err.Error())
 		return
+	}
+
+	if h.dispatcher != nil {
+		h.dispatcher.Dispatch(c.Request.Context(), model.EventEmailSent, result)
 	}
 
 	c.JSON(http.StatusOK, result)
