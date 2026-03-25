@@ -17,9 +17,9 @@ import (
 
 func TestEmailTracking(t *testing.T) {
 	ctx := context.Background()
-	s := setupTestDB(t)
-	err := truncateTables(ctx, s.Pool)
-	require.NoError(t, err)
+
+	// Use setupTest to get both router and store (they share the same DB connection)
+	router, s := setupTest(t)
 
 	// Create account
 	accountStore := store.NewAccountStore(s)
@@ -46,9 +46,6 @@ func TestEmailTracking(t *testing.T) {
 	}
 	err = emailStore.StoreEmail(ctx, testEmail)
 	require.NoError(t, err)
-
-	// Create router with base URL for tracking
-	router := setupTestRouter(t)
 
 	t.Run("TrackingPixelServesGIF", func(t *testing.T) {
 		// GET /t/eml_track_001 — no auth required
@@ -160,10 +157,10 @@ func TestEmailTracking(t *testing.T) {
 
 func TestEmailTrackingFirstOpen(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Use setupTest to get both router and store
 	router, s := setupTest(t)
-	
+
 	// Create account
 	accountStore := store.NewAccountStore(s)
 	account, err := accountStore.Create(ctx, store.CreateAccountParams{
@@ -222,10 +219,10 @@ func TestEmailTrackingFirstOpen(t *testing.T) {
 
 func TestEmailTrackingMultipleLinks(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Use setupTest to get both router and store
 	router, s := setupTest(t)
-	
+
 	// Create account
 	accountStore := store.NewAccountStore(s)
 	account, err := accountStore.Create(ctx, store.CreateAccountParams{
