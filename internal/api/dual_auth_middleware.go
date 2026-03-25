@@ -24,8 +24,13 @@ func DualAuthMiddleware(apiKeys *store.ApiKeyStore, staticKey string) gin.Handle
 		// 1. Try DB-backed lookup (Better Auth keys)
 		hash := sha256.Sum256([]byte(rawKey))
 		keyHash := hex.EncodeToString(hash[:])
-		apiKey, _ := apiKeys.LookupByKeyHash(c.Request.Context(), keyHash)
+		apiKey, lookupErr := apiKeys.LookupByKeyHash(c.Request.Context(), keyHash)
 
+		// If DB lookup failed (not just "key not found"), fail closed
+		if lookupErr != nil && apiKey == nil {
+			c.AbortWithStatusJSON(503, gin.H{"error": "Service temporarily unavailable"})
+			return
+		}
 		if apiKey != nil {
 			if apiKey.Enabled != nil && !*apiKey.Enabled {
 				Unauthorized(c)

@@ -69,6 +69,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		"003_create_messages.sql",
 		"004_create_webhooks.sql",
 		"005_create_attendees_and_emails.sql",
+		"010_add_organization_id.sql",
 		"011_create_audit_log.sql",
 	}
 

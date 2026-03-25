@@ -371,8 +371,8 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 }
 
 func parseLimit(s string) int {
-	var n int
-	if _, err := strconv.Atoi(s); err != nil {
+	n, err := strconv.Atoi(s)
+	if err != nil {
 		return 25
 	}
 	if n <= 0 {
