@@ -51,7 +51,13 @@ func (h *CalendarHandler) List(c *gin.Context) {
 		account, aErr := accounts.GetByID(c.Request.Context(), accountID)
 		if aErr == nil && account != nil {
 			// Try calendar-capable providers for this account
-			for _, provName := range []string{"GOOGLE_CALENDAR", "OUTLOOK", account.Provider} {
+			// Try calendar-capable providers, dedup to avoid redundant attempts
+			seen := map[string]bool{}
+			for _, provName := range []string{account.Provider, "GOOGLE_CALENDAR", "OUTLOOK"} {
+				if seen[provName] {
+					continue
+				}
+				seen[provName] = true
 				prov, pErr := adapter.Get(provName)
 				if pErr != nil {
 					continue

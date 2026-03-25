@@ -105,7 +105,7 @@ func (h *AccountHandler) Create(c *gin.Context) {
 
 // GET /accounts
 func (h *AccountHandler) List(c *gin.Context) {
-	// Check for organization_id in context (set by ApiKeyMiddleware)
+	// Check for organization_id in context (set by DualAuthMiddleware)
 	orgID := c.GetString("organization_id")
 	if orgID != "" {
 		// Use organization-scoped query

@@ -23,7 +23,7 @@ func NewWebhookHandler(s *store.Store) *WebhookHandler {
 
 // GET /webhooks
 func (h *WebhookHandler) List(c *gin.Context) {
-	// Check for organization_id in context (set by ApiKeyMiddleware)
+	// Check for organization_id in context (set by DualAuthMiddleware)
 	orgID := c.GetString("organization_id")
 	var webhooks []*model.Webhook
 	var err error
@@ -65,7 +65,7 @@ func (h *WebhookHandler) Create(c *gin.Context) {
 		req.Secret = generateWebhookSecret()
 	}
 
-	// Check for organization_id in context (set by ApiKeyMiddleware)
+	// Check for organization_id in context (set by DualAuthMiddleware)
 	orgID := c.GetString("organization_id")
 	var webhook *model.Webhook
 	var err error
