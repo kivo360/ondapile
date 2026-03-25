@@ -72,6 +72,23 @@ func (ws *WebhookStore) GetByID(ctx context.Context, id string) (*model.Webhook,
 	return &w, nil
 }
 
+func (ws *WebhookStore) GetByIDAndOrg(ctx context.Context, id, organizationID string) (*model.Webhook, error) {
+	q := `SELECT id, url, events, secret, active, created_at FROM webhooks WHERE id = $1 AND organization_id = $2`
+
+	var w model.Webhook
+	err := ws.s.Pool.QueryRow(ctx, q, id, organizationID).Scan(
+		&w.ID, &w.URL, &w.Events, &w.Secret, &w.Active, &w.CreatedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	w.Object = "webhook"
+	return &w, nil
+}
+
 func (ws *WebhookStore) List(ctx context.Context) ([]*model.Webhook, error) {
 	q := `SELECT id, url, events, secret, active, created_at FROM webhooks ORDER BY created_at DESC`
 
@@ -144,6 +161,12 @@ func (ws *WebhookStore) ListByOrganization(ctx context.Context, organizationID s
 func (ws *WebhookStore) Delete(ctx context.Context, id string) error {
 	q := `DELETE FROM webhooks WHERE id = $1`
 	_, err := ws.s.Pool.Exec(ctx, q, id)
+	return err
+}
+
+func (ws *WebhookStore) DeleteByIDAndOrg(ctx context.Context, id, organizationID string) error {
+	q := `DELETE FROM webhooks WHERE id = $1 AND organization_id = $2`
+	_, err := ws.s.Pool.Exec(ctx, q, id, organizationID)
 	return err
 }
 

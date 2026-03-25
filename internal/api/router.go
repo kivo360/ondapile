@@ -25,7 +25,7 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	r.GET("/oauth/success", func(c *gin.Context) {
 		c.Data(200, "text/html; charset=utf-8", []byte(`<!DOCTYPE html><html><head><title>Ondapile</title><style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f8f9fa}div{text-align:center}h1{color:#22c55e;font-size:3rem}p{color:#666;font-size:1.2rem}</style></head><body><div><h1>✅</h1><h2>Account Connected</h2><p>You can close this window.</p></div></body></html>`))
 	})
-	// API v1 — all require auth
+
 	// API v1 — all require auth
 	apiKeyStore := store.NewApiKeyStore(s)
 	v1 := r.Group("/api/v1", DualAuthMiddleware(apiKeyStore, apiKey))
@@ -83,7 +83,6 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	// Audit Log
 	auditH := NewAuditLogHandler(s)
 	v1.GET("/audit-log", auditH.List)
-
 
 	// Emails
 	v1.GET("/emails", emailH.List)

@@ -3,7 +3,6 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
-
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -90,11 +89,17 @@ func (h *WebhookHandler) Create(c *gin.Context) {
 // DELETE /webhooks/:id
 func (h *WebhookHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.webhooks.Delete(c.Request.Context(), id); err != nil {
+	orgID := c.GetString("organization_id")
+	var err error
+	if orgID != "" {
+		err = h.webhooks.DeleteByIDAndOrg(c.Request.Context(), id, orgID)
+	} else {
+		err = h.webhooks.Delete(c.Request.Context(), id)
+	}
+	if err != nil {
 		NotFound(c, "Webhook not found")
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"object": "webhook", "id": id, "deleted": true})
 }
 

@@ -56,7 +56,7 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		return
 	}
 
-// Create account record
+	// Create account record
 	caps := getProviderCapabilities(req.Provider)
 	orgID := c.GetString("organization_id")
 	account, err := h.accounts.Create(c.Request.Context(), store.CreateAccountParams{
@@ -144,12 +144,27 @@ func (h *AccountHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, model.NewPaginatedList(items, nextCursor, hasMore))
 }
 
-// GET /accounts/:id
-func (h *AccountHandler) Get(c *gin.Context) {
+func (h *AccountHandler) getAccount(c *gin.Context) (*model.Account, bool) {
 	id := c.Param("id")
-	account, err := h.accounts.GetByID(c.Request.Context(), id)
+	orgID := c.GetString("organization_id")
+	var account *model.Account
+	var err error
+	if orgID != "" {
+		account, err = h.accounts.GetByIDAndOrg(c.Request.Context(), id, orgID)
+	} else {
+		account, err = h.accounts.GetByID(c.Request.Context(), id)
+	}
 	if err != nil || account == nil {
 		NotFound(c, "Account not found")
+		return nil, false
+	}
+	return account, true
+}
+
+// GET /accounts/:id
+func (h *AccountHandler) Get(c *gin.Context) {
+	account, ok := h.getAccount(c)
+	if !ok {
 		return
 	}
 
@@ -167,32 +182,36 @@ func (h *AccountHandler) Get(c *gin.Context) {
 
 // DELETE /accounts/:id
 func (h *AccountHandler) Delete(c *gin.Context) {
-	id := c.Param("id")
-	account, err := h.accounts.GetByID(c.Request.Context(), id)
-	if err != nil || account == nil {
-		NotFound(c, "Account not found")
+	account, ok := h.getAccount(c)
+	if !ok {
 		return
 	}
 
 	prov, err := adapter.Get(account.Provider)
 	if err == nil {
-		_ = prov.Disconnect(c.Request.Context(), id)
+		_ = prov.Disconnect(c.Request.Context(), account.ID)
 	}
 
-	if err := h.accounts.Delete(c.Request.Context(), id); err != nil {
-		Internal(c, "Failed to delete account")
-		return
+	orgID := c.GetString("organization_id")
+	if orgID != "" {
+		if err := h.accounts.DeleteByIDAndOrg(c.Request.Context(), account.ID, orgID); err != nil {
+			Internal(c, "Failed to delete account")
+			return
+		}
+	} else {
+		if err := h.accounts.Delete(c.Request.Context(), account.ID); err != nil {
+			Internal(c, "Failed to delete account")
+			return
+		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"object": "account", "id": id, "deleted": true})
+	c.JSON(http.StatusOK, gin.H{"object": "account", "id": account.ID, "deleted": true})
 }
 
 // POST /accounts/:id/reconnect
 func (h *AccountHandler) Reconnect(c *gin.Context) {
-	id := c.Param("id")
-	account, err := h.accounts.GetByID(c.Request.Context(), id)
-	if err != nil || account == nil {
-		NotFound(c, "Account not found")
+	account, ok := h.getAccount(c)
+	if !ok {
 		return
 	}
 
@@ -202,16 +221,16 @@ func (h *AccountHandler) Reconnect(c *gin.Context) {
 		return
 	}
 	// Try to load persisted credentials for reconnection
-	encCreds, credErr := h.accounts.GetCredentialsEnc(c.Request.Context(), id)
+	encCreds, credErr := h.accounts.GetCredentialsEnc(c.Request.Context(), account.ID)
 	if credErr == nil && len(encCreds) > 0 && len(h.encryptionKey) > 0 {
 		creds, decErr := config.DecryptCredentials(encCreds, h.encryptionKey)
 		if decErr == nil {
 			// Disconnect first, then reconnect with stored creds
-			_ = prov.Disconnect(c.Request.Context(), id)
-			_ = h.accounts.UpdateStatus(c.Request.Context(), id, model.StatusConnecting, nil)
-			reconnected, err := prov.Connect(c.Request.Context(), id, creds)
+			_ = prov.Disconnect(c.Request.Context(), account.ID)
+			_ = h.accounts.UpdateStatus(c.Request.Context(), account.ID, model.StatusConnecting, nil)
+			reconnected, err := prov.Connect(c.Request.Context(), account.ID, creds)
 			if err != nil {
-				h.accounts.UpdateStatus(c.Request.Context(), id, model.StatusInterrupted, strPtr(err.Error()))
+				h.accounts.UpdateStatus(c.Request.Context(), account.ID, model.StatusInterrupted, strPtr(err.Error()))
 				ProviderError(c, "Failed to reconnect: "+err.Error())
 				return
 			}
@@ -221,10 +240,10 @@ func (h *AccountHandler) Reconnect(c *gin.Context) {
 	}
 
 	// Fall back to adapter's own reconnect (e.g., WhatsApp with existing session)
-	_ = h.accounts.UpdateStatus(c.Request.Context(), id, model.StatusConnecting, nil)
-	reconnected, err := prov.Reconnect(c.Request.Context(), id)
+	_ = h.accounts.UpdateStatus(c.Request.Context(), account.ID, model.StatusConnecting, nil)
+	reconnected, err := prov.Reconnect(c.Request.Context(), account.ID)
 	if err != nil {
-		h.accounts.UpdateStatus(c.Request.Context(), id, model.StatusInterrupted, strPtr(err.Error()))
+		h.accounts.UpdateStatus(c.Request.Context(), account.ID, model.StatusInterrupted, strPtr(err.Error()))
 		ProviderError(c, "Failed to reconnect: "+err.Error())
 		return
 	}
@@ -234,10 +253,8 @@ func (h *AccountHandler) Reconnect(c *gin.Context) {
 
 // GET /accounts/:id/auth-challenge
 func (h *AccountHandler) GetAuthChallenge(c *gin.Context) {
-	id := c.Param("id")
-	account, err := h.accounts.GetByID(c.Request.Context(), id)
-	if err != nil || account == nil {
-		NotFound(c, "Account not found")
+	account, ok := h.getAccount(c)
+	if !ok {
 		return
 	}
 
@@ -247,7 +264,7 @@ func (h *AccountHandler) GetAuthChallenge(c *gin.Context) {
 		return
 	}
 
-	challenge, err := prov.GetAuthChallenge(c.Request.Context(), id)
+	challenge, err := prov.GetAuthChallenge(c.Request.Context(), account.ID)
 	if err != nil {
 		ProviderError(c, "Failed to get auth challenge: "+err.Error())
 		return
@@ -258,10 +275,8 @@ func (h *AccountHandler) GetAuthChallenge(c *gin.Context) {
 
 // GET /accounts/:id/qr returns the QR code as a PNG image.
 func (h *AccountHandler) GetQRCode(c *gin.Context) {
-	id := c.Param("id")
-	account, err := h.accounts.GetByID(c.Request.Context(), id)
-	if err != nil || account == nil {
-		NotFound(c, "Account not found")
+	account, ok := h.getAccount(c)
+	if !ok {
 		return
 	}
 
@@ -271,7 +286,7 @@ func (h *AccountHandler) GetQRCode(c *gin.Context) {
 		return
 	}
 
-	challenge, err := prov.GetAuthChallenge(c.Request.Context(), id)
+	challenge, err := prov.GetAuthChallenge(c.Request.Context(), account.ID)
 	if err != nil {
 		ProviderError(c, "Failed to get auth challenge: "+err.Error())
 		return
@@ -310,10 +325,8 @@ func (h *AccountHandler) QRPage(c *gin.Context) {
 
 // POST /accounts/:id/checkpoint
 func (h *AccountHandler) SolveCheckpoint(c *gin.Context) {
-	id := c.Param("id")
-	account, err := h.accounts.GetByID(c.Request.Context(), id)
-	if err != nil || account == nil {
-		NotFound(c, "Account not found")
+	account, ok := h.getAccount(c)
+	if !ok {
 		return
 	}
 
@@ -331,12 +344,12 @@ func (h *AccountHandler) SolveCheckpoint(c *gin.Context) {
 		return
 	}
 
-	if err := prov.SolveCheckpoint(c.Request.Context(), id, req.Solution); err != nil {
+	if err := prov.SolveCheckpoint(c.Request.Context(), account.ID, req.Solution); err != nil {
 		ProviderError(c, "Failed to solve checkpoint: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"object": "account", "id": id, "status": "CHECKPOINT_SOLVED"})
+	c.JSON(http.StatusOK, gin.H{"object": "account", "id": account.ID, "status": "CHECKPOINT_SOLVED"})
 }
 
 func getProviderCapabilities(provider string) []string {

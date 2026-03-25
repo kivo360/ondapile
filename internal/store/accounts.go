@@ -87,6 +87,31 @@ func (as *AccountStore) GetByID(ctx context.Context, id string) (*model.Account,
 	return &a, nil
 }
 
+func (as *AccountStore) GetByIDAndOrg(ctx context.Context, id, organizationID string) (*model.Account, error) {
+	q := `SELECT id, provider, name, identifier, status, status_detail, capabilities,
+	            created_at, updated_at, last_synced_at, metadata, proxy_config
+	      FROM accounts WHERE id = $1 AND organization_id = $2`
+
+	var a model.Account
+	var proxyData []byte
+	err := as.s.Pool.QueryRow(ctx, q, id, organizationID).Scan(
+		&a.ID, &a.Provider, &a.Name, &a.Identifier, &a.Status,
+		&a.StatusDetail, &a.Capabilities, &a.CreatedAt, &a.UpdatedAt,
+		&a.LastSyncedAt, &a.Metadata, &proxyData,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(proxyData) > 0 {
+		json.Unmarshal(proxyData, &a.Proxy)
+	}
+	a.Object = "account"
+	return &a, nil
+}
+
 func (as *AccountStore) List(ctx context.Context, provider *string, status *string, cursor string, limit int) ([]*model.Account, string, bool, error) {
 	if limit <= 0 {
 		limit = 25
@@ -170,6 +195,12 @@ func (as *AccountStore) UpdateSyncedAt(ctx context.Context, id string) error {
 func (as *AccountStore) Delete(ctx context.Context, id string) error {
 	q := `DELETE FROM accounts WHERE id = $1`
 	_, err := as.s.Pool.Exec(ctx, q, id)
+	return err
+}
+
+func (as *AccountStore) DeleteByIDAndOrg(ctx context.Context, id, organizationID string) error {
+	q := `DELETE FROM accounts WHERE id = $1 AND organization_id = $2`
+	_, err := as.s.Pool.Exec(ctx, q, id, organizationID)
 	return err
 }
 
@@ -257,35 +288,36 @@ func (as *AccountStore) GetCredentialsEnc(ctx context.Context, id string) ([]byt
 	}
 	return creds, nil
 }
+
 // ListByOrganization returns accounts filtered by organization_id.
 func (as *AccountStore) ListByOrganization(ctx context.Context, organizationID string) ([]*model.Account, error) {
 	q := `SELECT id, provider, name, identifier, status, status_detail, capabilities,
             created_at, updated_at, last_synced_at, metadata, proxy_config
       FROM accounts WHERE organization_id = $1 ORDER BY created_at DESC`
 
-rows, err := as.s.Pool.Query(ctx, q, organizationID)
-if err != nil {
-return nil, err
-}
-defer rows.Close()
+	rows, err := as.s.Pool.Query(ctx, q, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-var accounts []*model.Account
-for rows.Next() {
-var a model.Account
-var proxyData []byte
-if err := rows.Scan(&a.ID, &a.Provider, &a.Name, &a.Identifier, &a.Status,
-&a.StatusDetail, &a.Capabilities, &a.CreatedAt, &a.UpdatedAt,
-&a.LastSyncedAt, &a.Metadata, &proxyData); err != nil {
-return nil, err
-}
-if len(proxyData) > 0 {
-json.Unmarshal(proxyData, &a.Proxy)
-}
-a.Object = "account"
-accounts = append(accounts, &a)
-}
+	var accounts []*model.Account
+	for rows.Next() {
+		var a model.Account
+		var proxyData []byte
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Name, &a.Identifier, &a.Status,
+			&a.StatusDetail, &a.Capabilities, &a.CreatedAt, &a.UpdatedAt,
+			&a.LastSyncedAt, &a.Metadata, &proxyData); err != nil {
+			return nil, err
+		}
+		if len(proxyData) > 0 {
+			json.Unmarshal(proxyData, &a.Proxy)
+		}
+		a.Object = "account"
+		accounts = append(accounts, &a)
+	}
 
-return accounts, nil
+	return accounts, nil
 }
 
 // mock time usage
