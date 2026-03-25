@@ -211,6 +211,31 @@ func (a *GCalAdapter) GetEmail(ctx context.Context, accountID string, emailID st
 	return nil, adapter.ErrNotSupported
 }
 
+// ReplyEmail is not supported by Google Calendar.
+func (a *GCalAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ForwardEmail is not supported by Google Calendar.
+func (a *GCalAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEmailProvider is not supported by Google Calendar.
+func (a *GCalAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	return adapter.ErrNotSupported
+}
+
+// DeleteEmailProvider is not supported by Google Calendar.
+func (a *GCalAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	return adapter.ErrNotSupported
+}
+
+// ListFolders is not supported by Google Calendar.
+func (a *GCalAdapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
 // ListCalendars returns calendars from Google Calendar.
 func (a *GCalAdapter) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
 	client, err := a.httpClient(ctx, accountID)

@@ -41,6 +41,11 @@ type Provider interface {
 	SendEmail(ctx context.Context, accountID string, req SendEmailRequest) (*model.Email, error)
 	ListEmails(ctx context.Context, accountID string, opts ListEmailOpts) (*model.PaginatedList[model.Email], error)
 	GetEmail(ctx context.Context, accountID string, emailID string) (*model.Email, error)
+	ReplyEmail(ctx context.Context, accountID string, emailID string, req SendEmailRequest) (*model.Email, error)
+	ForwardEmail(ctx context.Context, accountID string, emailID string, req SendEmailRequest) (*model.Email, error)
+	UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts UpdateEmailOpts) error
+	DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error
+	ListFolders(ctx context.Context, accountID string) ([]string, error)
 
 	// Calendar (only for calendar providers)
 	ListCalendars(ctx context.Context, accountID string, opts ListOpts) (*model.PaginatedList[model.Calendar], error)
@@ -98,6 +103,8 @@ type SendEmailRequest struct {
 	BodyHTML    string                `json:"body_html"`
 	BodyPlain   string                `json:"body_plain"`
 	ReplyToID   *string               `json:"reply_to_email_id,omitempty"`
+	InReplyTo   string                `json:"-"` // Message-ID of email being replied to (internal)
+	References  string                `json:"-"` // References header for threading (internal)
 	Attachments []AttachmentUpload    `json:"attachments,omitempty"`
 }
 
@@ -105,6 +112,7 @@ type ListEmailOpts struct {
 	Cursor    string
 	Limit     int
 	Folder    string
+	Query     string
 	From      string
 	To        string
 	Subject   string
@@ -112,6 +120,12 @@ type ListEmailOpts struct {
 	After     *time.Time
 	HasAttach *bool
 	IsRead    *bool
+}
+
+type UpdateEmailOpts struct {
+	Folder  *string
+	Read    *bool
+	Starred *bool
 }
 
 type CreateEventRequest struct {

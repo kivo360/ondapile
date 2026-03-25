@@ -532,6 +532,31 @@ func (p *WhatsAppProvider) GetEmail(ctx context.Context, accountID string, email
 	return nil, fmt.Errorf("email retrieval not supported by WhatsApp provider")
 }
 
+// ReplyEmail is not supported by WhatsApp.
+func (p *WhatsAppProvider) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ForwardEmail is not supported by WhatsApp.
+func (p *WhatsAppProvider) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEmailProvider is not supported by WhatsApp.
+func (p *WhatsAppProvider) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	return adapter.ErrNotSupported
+}
+
+// DeleteEmailProvider is not supported by WhatsApp.
+func (p *WhatsAppProvider) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	return adapter.ErrNotSupported
+}
+
+// ListFolders is not supported by WhatsApp.
+func (p *WhatsAppProvider) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
 // createClient creates a new whatsmeow client for the given account.
 func (p *WhatsAppProvider) createClient(ctx context.Context, accountID string) (*whatsmeow.Client, error) {
 	return CreateClient(ctx, accountID, p.deviceStorePath)

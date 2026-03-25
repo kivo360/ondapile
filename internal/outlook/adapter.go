@@ -197,6 +197,31 @@ func (a *OutlookAdapter) GetAttendee(ctx context.Context, accountID string, atte
 	return nil, adapter.ErrNotSupported
 }
 
+// ReplyEmail is not supported by Outlook.
+func (a *OutlookAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ForwardEmail is not supported by Outlook.
+func (a *OutlookAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEmailProvider is not supported by Outlook.
+func (a *OutlookAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	return adapter.ErrNotSupported
+}
+
+// DeleteEmailProvider is not supported by Outlook.
+func (a *OutlookAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	return adapter.ErrNotSupported
+}
+
+// ListFolders is not supported by Outlook.
+func (a *OutlookAdapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
 // DownloadAttachment downloads an attachment from Outlook.
 func (a *OutlookAdapter) DownloadAttachment(ctx context.Context, accountID string, messageID string, attachmentID string) ([]byte, string, error) {
 	return a.downloadEmailAttachment(ctx, accountID, messageID, attachmentID)

@@ -660,6 +660,142 @@ func (a *Adapter) GetEmail(ctx context.Context, accountID string, emailID string
 	return emailStore.GetEmail(ctx, emailID)
 }
 
+// ReplyEmail replies to an existing email, setting threading headers.
+func (a *Adapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	// Get original email for threading
+	original, err := a.GetEmail(ctx, accountID, emailID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get original email: %w", err)
+	}
+
+	// Set threading headers from original
+	if original.ProviderID != nil && original.ProviderID.MessageID != "" {
+		req.InReplyTo = original.ProviderID.MessageID
+		req.References = original.ProviderID.MessageID
+	}
+
+	// Default subject to Re: original subject
+	if req.Subject == "" {
+		req.Subject = "Re: " + original.Subject
+	}
+
+	// Default To to original sender
+	if len(req.To) == 0 && original.FromAttendee != nil {
+		req.To = []model.EmailAttendee{*original.FromAttendee}
+	}
+
+	return a.SendEmail(ctx, accountID, req)
+}
+
+// ForwardEmail forwards an existing email to new recipients.
+func (a *Adapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	// Get original email
+	original, err := a.GetEmail(ctx, accountID, emailID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get original email: %w", err)
+	}
+
+	// Default subject to Fwd: original subject
+	if req.Subject == "" {
+		req.Subject = "Fwd: " + original.Subject
+	}
+
+	// Include original body as quoted content
+	fwdHeader := fmt.Sprintf("\n\n---------- Forwarded message ----------\nFrom: %s\nSubject: %s\nDate: %s\n\n",
+		original.FromAttendee.DisplayName+" <"+original.FromAttendee.Identifier+">",
+		original.Subject,
+		original.Date.Format(time.RFC1123),
+	)
+	if req.BodyHTML != "" {
+		req.BodyHTML = req.BodyHTML + fwdHeader + original.Body
+	} else {
+		req.BodyHTML = fwdHeader + original.Body
+	}
+
+	return a.SendEmail(ctx, accountID, req)
+}
+
+// UpdateEmailProvider syncs email changes (read status, folder) to the IMAP server.
+func (a *Adapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	clientVal, ok := a.imapClients.Load(accountID)
+	if !ok {
+		return fmt.Errorf("IMAP client not connected for account %s", accountID)
+	}
+	client := clientVal.(*imapclient.Client)
+
+	// Get the email to find UID and folder
+	email, err := a.GetEmail(ctx, accountID, emailID)
+	if err != nil {
+		return fmt.Errorf("failed to get email: %w", err)
+	}
+
+	// Extract UID from metadata
+	uid, _ := email.Metadata["uid"].(float64)
+	if uid == 0 {
+		return fmt.Errorf("email has no IMAP UID")
+	}
+
+	currentFolder := model.FolderInbox
+	if len(email.Folders) > 0 {
+		currentFolder = email.Folders[0]
+	}
+
+	// Update read status
+	if opts.Read != nil && *opts.Read {
+		if err := MarkAsSeen(client, currentFolder, uint32(uid)); err != nil {
+			slog.Error("failed to mark as seen", "error", err)
+		}
+	}
+
+	// Move to folder
+	if opts.Folder != nil && *opts.Folder != currentFolder {
+		if err := MoveMessage(client, currentFolder, *opts.Folder, uint32(uid)); err != nil {
+			return fmt.Errorf("failed to move message: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// DeleteEmailProvider deletes an email from the IMAP server.
+func (a *Adapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	clientVal, ok := a.imapClients.Load(accountID)
+	if !ok {
+		return fmt.Errorf("IMAP client not connected for account %s", accountID)
+	}
+	client := clientVal.(*imapclient.Client)
+
+	// Get the email to find UID and folder
+	email, err := a.GetEmail(ctx, accountID, emailID)
+	if err != nil {
+		return fmt.Errorf("failed to get email: %w", err)
+	}
+
+	// Extract UID from metadata
+	uid, _ := email.Metadata["uid"].(float64)
+	if uid == 0 {
+		return fmt.Errorf("email has no IMAP UID")
+	}
+
+	currentFolder := model.FolderInbox
+	if len(email.Folders) > 0 {
+		currentFolder = email.Folders[0]
+	}
+
+	return DeleteMessage(client, currentFolder, uint32(uid))
+}
+
+// ListFolders lists all mailbox folders from the IMAP server.
+func (a *Adapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	clientVal, ok := a.imapClients.Load(accountID)
+	if !ok {
+		return nil, fmt.Errorf("IMAP client not connected for account %s", accountID)
+	}
+	client := clientVal.(*imapclient.Client)
+
+	return ListMailboxes(client)
+}
+
 // ListAttendees lists all attendees (email contacts) for an account.
 func (a *Adapter) ListAttendees(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Attendee], error) {
 	// For email, we extract attendees from stored emails

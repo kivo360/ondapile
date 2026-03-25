@@ -108,10 +108,12 @@ func (h *EmailHandler) List(c *gin.Context) {
 	}
 
 	folder := c.DefaultQuery("folder", "INBOX")
+	query := c.Query("q")
 	p := GetPagination(c)
 
 	emails, err := prov.ListEmails(c.Request.Context(), accountID, adapter.ListEmailOpts{
 		Folder: folder,
+		Query:  query,
 		Limit:  p.Limit,
 	})
 	if err != nil {
@@ -172,19 +174,38 @@ func (h *EmailHandler) Update(c *gin.Context) {
 	}
 
 	var req struct {
-		Folder *string `json:"folder"`
-		Read   *bool   `json:"read"`
+		Folder  *string `json:"folder"`
+		Read    *bool   `json:"read"`
+		Starred *bool   `json:"starred"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Validation(c, err.Error())
 		return
 	}
 
-	if req.Folder == nil && req.Read == nil {
-		Validation(c, "Either folder or read must be provided")
+	if req.Folder == nil && req.Read == nil && req.Starred == nil {
+		Validation(c, "At least one of folder, read, or starred must be provided")
 		return
 	}
 
+	// Sync changes to the provider (IMAP/Gmail/Outlook)
+	accountStore := store.NewAccountStore(h.store)
+	account, err := accountStore.GetByID(c.Request.Context(), existingEmail.AccountID)
+	if err == nil && account != nil {
+		prov, provErr := adapter.Get(account.Provider)
+		if provErr == nil {
+			syncErr := prov.UpdateEmailProvider(c.Request.Context(), existingEmail.AccountID, id, adapter.UpdateEmailOpts{
+				Folder:  req.Folder,
+				Read:    req.Read,
+				Starred: req.Starred,
+			})
+			if syncErr != nil {
+				slog.Warn("failed to sync update to provider", "error", syncErr, "id", id)
+			}
+		}
+	}
+
+	// Update in DB
 	if err := h.emails.UpdateEmail(c.Request.Context(), id, req.Folder, req.Read); err != nil {
 		slog.Error("failed to update email", "error", err, "id", id)
 		Internal(c, "Failed to update email: "+err.Error())
@@ -216,6 +237,18 @@ func (h *EmailHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// Sync delete to the provider
+	accountStore := store.NewAccountStore(h.store)
+	account, err := accountStore.GetByID(c.Request.Context(), existingEmail.AccountID)
+	if err == nil && account != nil {
+		prov, provErr := adapter.Get(account.Provider)
+		if provErr == nil {
+			if syncErr := prov.DeleteEmailProvider(c.Request.Context(), existingEmail.AccountID, id); syncErr != nil {
+				slog.Warn("failed to sync delete to provider", "error", syncErr, "id", id)
+			}
+		}
+	}
+
 	if err := h.emails.DeleteEmail(c.Request.Context(), id); err != nil {
 		Internal(c, "Failed to delete email")
 		return
@@ -226,12 +259,35 @@ func (h *EmailHandler) Delete(c *gin.Context) {
 
 // GET /emails/:id/attachments/:att_id
 func (h *EmailHandler) DownloadAttachment(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"object":  "error",
-		"status":  501,
-		"code":    "NOT_IMPLEMENTED",
-		"message": "Email attachment download requires IMAP re-fetch — not yet implemented",
-	})
+	emailID := c.Param("id")
+	attID := c.Param("att_id")
+	accountID := c.Query("account_id")
+	if accountID == "" {
+		Validation(c, "account_id is required")
+		return
+	}
+
+	accountStore := store.NewAccountStore(h.store)
+	account, err := accountStore.GetByID(c.Request.Context(), accountID)
+	if err != nil || account == nil {
+		NotFound(c, "Account not found")
+		return
+	}
+
+	prov, err := adapter.Get(account.Provider)
+	if err != nil {
+		ProviderError(c, "Provider not available")
+		return
+	}
+
+	data, filename, err := prov.DownloadAttachment(c.Request.Context(), accountID, emailID, attID)
+	if err != nil {
+		Internal(c, "Failed to download attachment: "+err.Error())
+		return
+	}
+
+	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	c.Data(http.StatusOK, "application/octet-stream", data)
 }
 
 // GET /emails/folders
@@ -281,4 +337,102 @@ func (h *EmailHandler) ListFolders(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, folders)
+}
+
+// POST /emails/:id/reply
+func (h *EmailHandler) Reply(c *gin.Context) {
+	emailID := c.Param("id")
+
+	var req struct {
+		AccountID string                `json:"account_id" binding:"required"`
+		BodyHTML  string                `json:"body_html" binding:"required"`
+		BodyPlain string                `json:"body_plain"`
+		To        []model.EmailAttendee `json:"to"`
+		CC        []model.EmailAttendee `json:"cc"`
+		BCC       []model.EmailAttendee `json:"bcc"`
+		Subject   string                `json:"subject"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Validation(c, err.Error())
+		return
+	}
+
+	accountStore := store.NewAccountStore(h.store)
+	account, err := accountStore.GetByID(c.Request.Context(), req.AccountID)
+	if err != nil || account == nil {
+		NotFound(c, "Account not found")
+		return
+	}
+
+	prov, err := adapter.Get(account.Provider)
+	if err != nil {
+		ProviderError(c, "Provider not available")
+		return
+	}
+
+	sendReq := adapter.SendEmailRequest{
+		To:        req.To,
+		CC:        req.CC,
+		BCC:       req.BCC,
+		Subject:   req.Subject,
+		BodyHTML:  req.BodyHTML,
+		BodyPlain: req.BodyPlain,
+	}
+
+	result, err := prov.ReplyEmail(c.Request.Context(), req.AccountID, emailID, sendReq)
+	if err != nil {
+		ProviderError(c, "Failed to reply: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// POST /emails/:id/forward
+func (h *EmailHandler) Forward(c *gin.Context) {
+	emailID := c.Param("id")
+
+	var req struct {
+		AccountID string                `json:"account_id" binding:"required"`
+		To        []model.EmailAttendee `json:"to" binding:"required"`
+		BodyHTML  string                `json:"body_html"`
+		BodyPlain string                `json:"body_plain"`
+		CC        []model.EmailAttendee `json:"cc"`
+		BCC       []model.EmailAttendee `json:"bcc"`
+		Subject   string                `json:"subject"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Validation(c, err.Error())
+		return
+	}
+
+	accountStore := store.NewAccountStore(h.store)
+	account, err := accountStore.GetByID(c.Request.Context(), req.AccountID)
+	if err != nil || account == nil {
+		NotFound(c, "Account not found")
+		return
+	}
+
+	prov, err := adapter.Get(account.Provider)
+	if err != nil {
+		ProviderError(c, "Provider not available")
+		return
+	}
+
+	sendReq := adapter.SendEmailRequest{
+		To:        req.To,
+		CC:        req.CC,
+		BCC:       req.BCC,
+		Subject:   req.Subject,
+		BodyHTML:  req.BodyHTML,
+		BodyPlain: req.BodyPlain,
+	}
+
+	result, err := prov.ForwardEmail(c.Request.Context(), req.AccountID, emailID, sendReq)
+	if err != nil {
+		ProviderError(c, "Failed to forward: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }

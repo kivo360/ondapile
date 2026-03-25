@@ -610,17 +610,17 @@ func TestMetricsEndpoint(t *testing.T) {
 }
 
 // Tests for GET /emails/:id/attachments/:att_id
-func TestEmailAttachmentNotImplemented(t *testing.T) {
+func TestEmailAttachmentRequiresAccountID(t *testing.T) {
 	router, _ := setupTest(t)
 
-	// This endpoint returns 501 Not Implemented
+	// DownloadAttachment now requires account_id query param
 	resp := apiRequest(t, router, "GET", "/api/v1/emails/test-email-id/attachments/test-att-id", nil, testAPIKey)
-	requireStatus(t, resp, http.StatusNotImplemented)
+	requireStatus(t, resp, http.StatusUnprocessableEntity)
 
 	var errResp map[string]interface{}
 	err := json.Unmarshal(resp.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "error", errResp["object"])
-	assert.Equal(t, "NOT_IMPLEMENTED", errResp["code"])
+	assert.Equal(t, "VALIDATION_ERROR", errResp["code"])
 }

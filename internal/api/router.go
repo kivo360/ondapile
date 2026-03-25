@@ -91,6 +91,8 @@ func Router(s *store.Store, w *webhook.Dispatcher, apiKey string, encryptionKey 
 	v1.PUT("/emails/:id", emailH.Update)
 	v1.DELETE("/emails/:id", emailH.Delete)
 	v1.GET("/emails/:id/attachments/:att_id", emailH.DownloadAttachment)
+	v1.POST("/emails/:id/reply", emailH.Reply)
+	v1.POST("/emails/:id/forward", emailH.Forward)
 	v1.GET("/emails/folders", emailH.ListFolders)
 
 	// Calendar routes

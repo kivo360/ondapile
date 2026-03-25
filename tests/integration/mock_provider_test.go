@@ -313,6 +313,23 @@ func (m *MockProvider) GetEmail(ctx context.Context, accountID string, emailID s
 	}, nil
 }
 
+// Email action stubs
+func (m *MockProvider) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+func (m *MockProvider) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	return adapter.ErrNotSupported
+}
+func (m *MockProvider) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	return adapter.ErrNotSupported
+}
+func (m *MockProvider) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
 // Calendar stubs — not supported by mock provider.
 func (m *MockProvider) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
 	return nil, adapter.ErrNotSupported

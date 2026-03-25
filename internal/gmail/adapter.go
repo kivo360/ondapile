@@ -383,6 +383,31 @@ func (a *GmailAdapter) GetEmail(ctx context.Context, accountID string, emailID s
 	return email, nil
 }
 
+// ReplyEmail is not supported by Gmail.
+func (a *GmailAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ForwardEmail is not supported by Gmail.
+func (a *GmailAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEmailProvider is not supported by Gmail.
+func (a *GmailAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	return adapter.ErrNotSupported
+}
+
+// DeleteEmailProvider is not supported by Gmail.
+func (a *GmailAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	return adapter.ErrNotSupported
+}
+
+// ListFolders is not supported by Gmail.
+func (a *GmailAdapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
 // ListCalendars is not supported by Gmail.
 func (a *GmailAdapter) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
 	return nil, adapter.ErrNotSupported

@@ -93,11 +93,12 @@ func SendEmail(client *mail.Client, req adapter.SendEmailRequest) error {
 		msg.SetBodyString(mail.TypeTextPlain, "")
 	}
 
-	// Set Reply-To if specified
-	if req.ReplyToID != nil && *req.ReplyToID != "" {
-		// In a real implementation, look up the original email's From address
-		// For now, we skip Reply-To setup as we don't have the original email reference
-		slog.Debug("Reply-To ID specified but not implemented", "reply_to_id", *req.ReplyToID)
+	// Set threading headers for replies/forwards
+	if req.InReplyTo != "" {
+		msg.SetGenHeader("In-Reply-To", fmt.Sprintf("<%s>", req.InReplyTo))
+	}
+	if req.References != "" {
+		msg.SetGenHeader("References", req.References)
 	}
 
 	// Add attachments

@@ -396,6 +396,31 @@ func (a *InstagramAdapter) GetEmail(ctx context.Context, accountID string, email
 	return nil, adapter.ErrNotSupported
 }
 
+// ReplyEmail is not supported by Instagram.
+func (a *InstagramAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// ForwardEmail is not supported by Instagram.
+func (a *InstagramAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	return nil, adapter.ErrNotSupported
+}
+
+// UpdateEmailProvider is not supported by Instagram.
+func (a *InstagramAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	return adapter.ErrNotSupported
+}
+
+// DeleteEmailProvider is not supported by Instagram.
+func (a *InstagramAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	return adapter.ErrNotSupported
+}
+
+// ListFolders is not supported by Instagram.
+func (a *InstagramAdapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+	return nil, adapter.ErrNotSupported
+}
+
 // --- Calendar stubs ---
 
 func (a *InstagramAdapter) ListCalendars(ctx context.Context, accountID string, opts adapter.ListOpts) (*model.PaginatedList[model.Calendar], error) {
