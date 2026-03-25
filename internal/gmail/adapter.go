@@ -383,29 +383,359 @@ func (a *GmailAdapter) GetEmail(ctx context.Context, accountID string, emailID s
 	return email, nil
 }
 
-// ReplyEmail is not supported by Gmail.
-func (a *GmailAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
-	return nil, adapter.ErrNotSupported
-}
-
-// ForwardEmail is not supported by Gmail.
-func (a *GmailAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
-	return nil, adapter.ErrNotSupported
-}
-
-// UpdateEmailProvider is not supported by Gmail.
-func (a *GmailAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
-	return adapter.ErrNotSupported
-}
-
-// DeleteEmailProvider is not supported by Gmail.
-func (a *GmailAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
-	return adapter.ErrNotSupported
-}
-
-// ListFolders is not supported by Gmail.
+// ListFolders returns the list of Gmail labels.
 func (a *GmailAdapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
-	return nil, adapter.ErrNotSupported
+	client, err := a.httpClient(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	var result map[string]interface{}
+	if err := gmailGet(client, "/labels", &result); err != nil {
+		return nil, fmt.Errorf("failed to list labels: %w", err)
+	}
+
+	var folders []string
+	if labels, ok := result["labels"].([]interface{}); ok {
+		for _, l := range labels {
+			if label, ok := l.(map[string]interface{}); ok {
+				if name, ok := label["name"].(string); ok {
+					folders = append(folders, name)
+				}
+			}
+		}
+	}
+
+	return folders, nil
+}
+
+// DeleteEmailProvider moves an email to trash in Gmail.
+func (a *GmailAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+	client, err := a.httpClient(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	if err := gmailPost(client, "/messages/"+emailID+"/trash", nil, nil); err != nil {
+		return fmt.Errorf("failed to move email to trash: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateEmailProvider updates email labels in Gmail (read, starred, folder).
+func (a *GmailAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+	client, err := a.httpClient(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	var addLabels, removeLabels []string
+
+	if opts.Read != nil {
+		if *opts.Read {
+			removeLabels = append(removeLabels, "UNREAD")
+		} else {
+			addLabels = append(addLabels, "UNREAD")
+		}
+	}
+
+	if opts.Starred != nil {
+		if *opts.Starred {
+			addLabels = append(addLabels, "STARRED")
+		} else {
+			removeLabels = append(removeLabels, "STARRED")
+		}
+	}
+
+	if opts.Folder != nil {
+		addLabels = append(addLabels, *opts.Folder)
+		removeLabels = append(removeLabels, "INBOX")
+	}
+
+	body := map[string]interface{}{}
+	if len(addLabels) > 0 {
+		body["addLabelIds"] = addLabels
+	}
+	if len(removeLabels) > 0 {
+		body["removeLabelIds"] = removeLabels
+	}
+
+	if err := gmailPost(client, "/messages/"+emailID+"/modify", body, nil); err != nil {
+		return fmt.Errorf("failed to update email: %w", err)
+	}
+
+	return nil
+}
+
+// ReplyEmail sends a reply to an existing email in Gmail.
+func (a *GmailAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	// Fetch the original email to get threadId and headers
+	original, err := a.GetEmail(ctx, accountID, emailID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get original email: %w", err)
+	}
+
+	client, err := a.httpClient(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	// Build the reply message
+	var msg strings.Builder
+
+	// Set To header - default to original sender if not provided
+	msg.WriteString("To: ")
+	if len(req.To) > 0 {
+		for i, to := range req.To {
+			if i > 0 {
+				msg.WriteString(", ")
+			}
+			if to.DisplayName != "" {
+				msg.WriteString(fmt.Sprintf("\"%s\" <%s>", to.DisplayName, to.Identifier))
+			} else {
+				msg.WriteString(to.Identifier)
+			}
+		}
+	} else if original.FromAttendee != nil {
+		if original.FromAttendee.DisplayName != "" {
+			msg.WriteString(fmt.Sprintf("\"%s\" <%s>", original.FromAttendee.DisplayName, original.FromAttendee.Identifier))
+		} else {
+			msg.WriteString(original.FromAttendee.Identifier)
+		}
+	}
+	msg.WriteString("\r\n")
+
+	// Add CC if provided
+	if len(req.CC) > 0 {
+		msg.WriteString("Cc: ")
+		for i, cc := range req.CC {
+			if i > 0 {
+				msg.WriteString(", ")
+			}
+			if cc.DisplayName != "" {
+				msg.WriteString(fmt.Sprintf("\"%s\" <%s>", cc.DisplayName, cc.Identifier))
+			} else {
+				msg.WriteString(cc.Identifier)
+			}
+		}
+		msg.WriteString("\r\n")
+	}
+
+	// Set Subject - prepend "Re: " if not already present
+	subject := req.Subject
+	if subject == "" {
+		subject = original.Subject
+		if !strings.HasPrefix(strings.ToLower(subject), "re: ") {
+			subject = "Re: " + subject
+		}
+	}
+	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+
+	// Set In-Reply-To and References headers
+	if original.ProviderID != nil && original.ProviderID.MessageID != "" {
+		msg.WriteString(fmt.Sprintf("In-Reply-To: <%s>\r\n", original.ProviderID.MessageID))
+		msg.WriteString(fmt.Sprintf("References: <%s>\r\n", original.ProviderID.MessageID))
+	}
+
+	msg.WriteString("Content-Type: text/html; charset=utf-8\r\n")
+	msg.WriteString("\r\n")
+
+	if req.BodyHTML != "" {
+		msg.WriteString(req.BodyHTML)
+	} else {
+		msg.WriteString(req.BodyPlain)
+	}
+
+	raw := base64.URLEncoding.EncodeToString([]byte(msg.String()))
+
+	body := map[string]interface{}{
+		"raw": raw,
+	}
+	if original.ProviderID != nil && original.ProviderID.ThreadID != "" {
+		body["threadId"] = original.ProviderID.ThreadID
+	}
+
+	var result map[string]interface{}
+	if err := gmailPost(client, "/messages/send", body, &result); err != nil {
+		return nil, fmt.Errorf("failed to send reply: %w", err)
+	}
+
+	newEmailID := uuid.New().String()
+	messageID, _ := result["id"].(string)
+	threadID, _ := result["threadId"].(string)
+
+	email := &model.Email{
+		Object:    "email",
+		ID:        newEmailID,
+		AccountID: accountID,
+		Provider:  a.Name(),
+		ProviderID: &model.EmailProviderID{
+			MessageID: messageID,
+			ThreadID:  threadID,
+		},
+		Subject:    subject,
+		Body:       req.BodyHTML,
+		BodyPlain:  req.BodyPlain,
+		Date:       time.Now(),
+		Folders:    []string{model.FolderSent},
+		Role:       model.FolderSent,
+		Read:       true,
+		IsComplete: true,
+	}
+
+	for _, to := range req.To {
+		email.ToAttendees = append(email.ToAttendees, model.EmailAttendee{
+			DisplayName:    to.DisplayName,
+			Identifier:     to.Identifier,
+			IdentifierType: string(model.IdentifierTypeEmailAddress),
+		})
+	}
+
+	if a.dispatcher != nil {
+		a.dispatcher.Dispatch(ctx, model.EventEmailSent, email)
+	}
+
+	return email, nil
+}
+
+// ForwardEmail forwards an existing email in Gmail.
+func (a *GmailAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+	// Fetch the original email
+	original, err := a.GetEmail(ctx, accountID, emailID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get original email: %w", err)
+	}
+
+	client, err := a.httpClient(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	// Build the forwarded message
+	var msg strings.Builder
+
+	// Set To header (required for forward)
+	msg.WriteString("To: ")
+	for i, to := range req.To {
+		if i > 0 {
+			msg.WriteString(", ")
+		}
+		if to.DisplayName != "" {
+			msg.WriteString(fmt.Sprintf("\"%s\" <%s>", to.DisplayName, to.Identifier))
+		} else {
+			msg.WriteString(to.Identifier)
+		}
+	}
+	msg.WriteString("\r\n")
+
+	// Add CC if provided
+	if len(req.CC) > 0 {
+		msg.WriteString("Cc: ")
+		for i, cc := range req.CC {
+			if i > 0 {
+				msg.WriteString(", ")
+			}
+			if cc.DisplayName != "" {
+				msg.WriteString(fmt.Sprintf("\"%s\" <%s>", cc.DisplayName, cc.Identifier))
+			} else {
+				msg.WriteString(cc.Identifier)
+			}
+		}
+		msg.WriteString("\r\n")
+	}
+
+	// Set Subject - prepend "Fwd: " if not already present
+	subject := req.Subject
+	if subject == "" {
+		subject = original.Subject
+		if !strings.HasPrefix(strings.ToLower(subject), "fwd: ") {
+			subject = "Fwd: " + subject
+		}
+	}
+	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	msg.WriteString("Content-Type: text/html; charset=utf-8\r\n")
+	msg.WriteString("\r\n")
+
+	// Prepend forwarded message header
+	msg.WriteString("<div style=\"margin-bottom: 20px;\">")
+	msg.WriteString("---------- Forwarded message ----------<br>\r\n")
+
+	// Add original sender info
+	if original.FromAttendee != nil {
+		msg.WriteString(fmt.Sprintf("From: %s &lt;%s&gt;<br>\r\n", original.FromAttendee.DisplayName, original.FromAttendee.Identifier))
+	}
+	msg.WriteString(fmt.Sprintf("Date: %s<br>\r\n", original.Date.Format(time.RFC1123)))
+	msg.WriteString(fmt.Sprintf("Subject: %s<br>\r\n", original.Subject))
+	msg.WriteString("</div>")
+	msg.WriteString("<div style=\"border-left: 2px solid #ccc; padding-left: 10px; margin-left: 10px;\">\r\n")
+
+	// Add the forwarded content
+	if req.BodyHTML != "" {
+		msg.WriteString(req.BodyHTML)
+	} else if req.BodyPlain != "" {
+		msg.WriteString(req.BodyPlain)
+	}
+	msg.WriteString("<br><br>\r\n")
+
+	// Append original body
+	if original.Body != "" {
+		msg.WriteString(original.Body)
+	} else {
+		msg.WriteString(original.BodyPlain)
+	}
+	msg.WriteString("</div>")
+
+	raw := base64.URLEncoding.EncodeToString([]byte(msg.String()))
+
+	body := map[string]interface{}{
+		"raw": raw,
+	}
+	if original.ProviderID != nil && original.ProviderID.ThreadID != "" {
+		body["threadId"] = original.ProviderID.ThreadID
+	}
+
+	var result map[string]interface{}
+	if err := gmailPost(client, "/messages/send", body, &result); err != nil {
+		return nil, fmt.Errorf("failed to send forward: %w", err)
+	}
+
+	newEmailID := uuid.New().String()
+	messageID, _ := result["id"].(string)
+	threadID, _ := result["threadId"].(string)
+
+	email := &model.Email{
+		Object:    "email",
+		ID:        newEmailID,
+		AccountID: accountID,
+		Provider:  a.Name(),
+		ProviderID: &model.EmailProviderID{
+			MessageID: messageID,
+			ThreadID:  threadID,
+		},
+		Subject:    subject,
+		Body:       msg.String(),
+		BodyPlain:  "", // Forward is HTML only
+		Date:       time.Now(),
+		Folders:    []string{model.FolderSent},
+		Role:       model.FolderSent,
+		Read:       true,
+		IsComplete: true,
+	}
+
+	for _, to := range req.To {
+		email.ToAttendees = append(email.ToAttendees, model.EmailAttendee{
+			DisplayName:    to.DisplayName,
+			Identifier:     to.Identifier,
+			IdentifierType: string(model.IdentifierTypeEmailAddress),
+		})
+	}
+
+	if a.dispatcher != nil {
+		a.dispatcher.Dispatch(ctx, model.EventEmailSent, email)
+	}
+
+	return email, nil
 }
 
 // ListCalendars is not supported by Gmail.

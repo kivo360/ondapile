@@ -28,6 +28,11 @@ type MockProvider struct {
 	SendEmailFunc          func(ctx context.Context, accountID string, req adapter.SendEmailRequest) (*model.Email, error)
 	ListEmailsFunc         func(ctx context.Context, accountID string, opts adapter.ListEmailOpts) (*model.PaginatedList[model.Email], error)
 	GetEmailFunc           func(ctx context.Context, accountID string, emailID string) (*model.Email, error)
+	ReplyEmailFunc         func(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error)
+	ForwardEmailFunc       func(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error)
+	UpdateEmailProviderFunc func(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error
+	DeleteEmailProviderFunc func(ctx context.Context, accountID string, emailID string) error
+	ListFoldersFunc        func(ctx context.Context, accountID string) ([]string, error)
 
 	// Store connected account info for test assertions
 	ConnectedAccountID string
@@ -315,19 +320,52 @@ func (m *MockProvider) GetEmail(ctx context.Context, accountID string, emailID s
 
 // Email action stubs
 func (m *MockProvider) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
-	return nil, adapter.ErrNotSupported
+	if m.ReplyEmailFunc != nil {
+		return m.ReplyEmailFunc(ctx, accountID, emailID, req)
+	}
+	return &model.Email{
+		Object:    "email",
+		ID:        "eml_reply_" + time.Now().Format("20060102150405"),
+		AccountID: accountID,
+		Provider:  m.Name(),
+		Subject:   "Re: " + req.Subject,
+		Body:      req.BodyHTML,
+		Date:      time.Now(),
+		Metadata:  map[string]any{},
+	}, nil
 }
 func (m *MockProvider) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
-	return nil, adapter.ErrNotSupported
+	if m.ForwardEmailFunc != nil {
+		return m.ForwardEmailFunc(ctx, accountID, emailID, req)
+	}
+	return &model.Email{
+		Object:    "email",
+		ID:        "eml_fwd_" + time.Now().Format("20060102150405"),
+		AccountID: accountID,
+		Provider:  m.Name(),
+		Subject:   "Fwd: " + req.Subject,
+		Body:      req.BodyHTML,
+		Date:      time.Now(),
+		Metadata:  map[string]any{},
+	}, nil
 }
 func (m *MockProvider) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
-	return adapter.ErrNotSupported
+	if m.UpdateEmailProviderFunc != nil {
+		return m.UpdateEmailProviderFunc(ctx, accountID, emailID, opts)
+	}
+	return nil
 }
 func (m *MockProvider) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
-	return adapter.ErrNotSupported
+	if m.DeleteEmailProviderFunc != nil {
+		return m.DeleteEmailProviderFunc(ctx, accountID, emailID)
+	}
+	return nil
 }
 func (m *MockProvider) ListFolders(ctx context.Context, accountID string) ([]string, error) {
-	return nil, adapter.ErrNotSupported
+	if m.ListFoldersFunc != nil {
+		return m.ListFoldersFunc(ctx, accountID)
+	}
+	return []string{"INBOX", "SENT", "ARCHIVE", "TRASH"}, nil
 }
 
 // Calendar stubs — not supported by mock provider.

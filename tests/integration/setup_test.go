@@ -113,9 +113,8 @@ func setupTestRouter(t *testing.T) *gin.Engine {
 	// Create webhook dispatcher
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
 
-	// Create router
-	r := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
-
+	// Create router with test base URL for tracking
+	r := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "http://localhost:8080")
 	return r
 }
 
@@ -193,7 +192,7 @@ func setupTest(t *testing.T) (*gin.Engine, *store.Store) {
 	// Create store and router
 	s := setupTestDB(t)
 	dispatcher := webhook.NewDispatcher(store.NewWebhookStore(s))
-	r := api.Router(s, dispatcher, testAPIKey, testEncryptionKey)
+	r := api.Router(s, dispatcher, testAPIKey, testEncryptionKey, "http://localhost:8080")
 
 	// Cleanup after test
 	t.Cleanup(func() {
