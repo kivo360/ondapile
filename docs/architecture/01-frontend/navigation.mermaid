@@ -1,0 +1,107 @@
+graph TD
+    subgraph "Pre-Auth (Anonymous)"
+        landing["/ Landing"]
+        login["/auth/login"]
+        signup["/auth/signup"]
+        forgot["/auth/forgot-password"]
+        verify["/auth/verify-email"]
+
+        landing -->|"not authenticated"| login
+        login -->|"Sign up link"| signup
+        signup -->|"Already have account"| login
+        login -->|"Forgot password"| forgot
+        forgot -->|"Back to login"| login
+        signup -->|"submit"| verify
+        verify -->|"verified"| login
+    end
+
+    subgraph "End User Auth Flows"
+        connect["/connect/$token<br/>Hosted Auth"]
+        oauth_success["/oauth/success<br/>Account Connected"]
+        wa_qr["/wa/qr/:id<br/>WhatsApp QR"]
+        google_oauth["External: Google OAuth"]
+        ms_oauth["External: Microsoft OAuth"]
+
+        connect -->|"select Gmail"| google_oauth
+        connect -->|"select Outlook"| ms_oauth
+        connect -->|"select WhatsApp"| wa_qr
+        google_oauth -->|"callback"| oauth_success
+        ms_oauth -->|"callback"| oauth_success
+        wa_qr -->|"QR scanned"| oauth_success
+    end
+
+    subgraph "Dashboard (Authenticated)"
+        dash_home["/dashboard<br/>Home"]
+        create_org["/dashboard/create-org"]
+
+        subgraph "Resources"
+            accounts["/dashboard/accounts"]
+            account_detail["/dashboard/accounts/$id"]
+            api_keys["/dashboard/api-keys"]
+            webhooks["/dashboard/webhooks"]
+            webhook_detail["/dashboard/webhooks/$id"]
+            logs["/dashboard/logs"]
+        end
+
+        subgraph "Settings"
+            settings["/dashboard/settings"]
+            team["/dashboard/settings/team"]
+            billing["/dashboard/settings/billing<br/>🔴 Mocked"]
+            oauth_creds["/dashboard/settings/oauth"]
+            hosted_auth["/dashboard/settings/hosted-auth"]
+        end
+
+        dash_home -->|"sidebar"| accounts
+        dash_home -->|"sidebar"| api_keys
+        dash_home -->|"sidebar"| webhooks
+        dash_home -->|"sidebar"| logs
+        dash_home -->|"sidebar"| settings
+        dash_home -->|"org switcher"| create_org
+
+        accounts -->|"click row"| account_detail
+        webhooks -->|"click row"| webhook_detail
+
+        settings -->|"sub-nav"| team
+        settings -->|"sub-nav"| billing
+        settings -->|"sub-nav"| oauth_creds
+        settings -->|"sub-nav"| hosted_auth
+    end
+
+    subgraph "Modals"
+        m_create_key["Modal: Create API Key"]
+        m_create_webhook["Modal: Create Webhook"]
+        m_delete["Modal: Delete Confirmation"]
+        m_invite["Modal: Invite Member"]
+        m_reconnect["Modal: Reconnect Account"]
+    end
+
+    login -->|"authenticated"| dash_home
+
+    api_keys -.->|"Create Key btn"| m_create_key
+    m_create_key -.->|"confirm/cancel"| api_keys
+
+    webhooks -.->|"Create Webhook btn"| m_create_webhook
+    m_create_webhook -.->|"confirm/cancel"| webhooks
+
+    account_detail -.->|"Delete btn"| m_delete
+    api_keys -.->|"Revoke btn"| m_delete
+    webhooks -.->|"Delete btn"| m_delete
+
+    team -.->|"Invite btn"| m_invite
+    m_invite -.->|"confirm/cancel"| team
+
+    account_detail -.->|"Reconnect btn"| m_reconnect
+    m_reconnect -.->|"confirm/cancel"| account_detail
+
+    %% Tracking routes (no UI, server-side)
+    subgraph "Public API Routes (No UI)"
+        tracking_pixel["/t/:id<br/>Tracking Pixel"]
+        tracking_link["/l/:id<br/>Link Redirect"]
+        health["/health"]
+        metrics["/metrics"]
+    end
+
+    style billing fill:#fee,stroke:#c00
+    style oauth_success fill:#efe,stroke:#0a0
+    style connect fill:#eef,stroke:#00a
+    style wa_qr fill:#eef,stroke:#00a

@@ -14,3 +14,8 @@ frontend/.vinxi/
 frontend/dist/
 frontend/*.db
 credentials/
+~/
+dump.rdb
+.omc/
+.env*
+!.env.example
