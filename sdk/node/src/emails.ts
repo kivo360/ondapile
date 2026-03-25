@@ -5,6 +5,9 @@ import type {
   PaginatedList,
   SendEmailRequest,
   UpdateEmailRequest,
+  ReplyEmailRequest,
+  ForwardEmailRequest,
+  SearchEmailsParams,
 } from "./types.js";
 
 /**
@@ -123,5 +126,26 @@ export class EmailsClient {
         last_contacted_at: string | null;
       }>
     >("/emails/contacts", params);
+  }
+
+  /**
+   * Reply to an email
+   */
+  async reply(emailId: string, body: ReplyEmailRequest): Promise<Email> {
+    return this.client.post<Email>(`/emails/${emailId}/reply`, body);
+  }
+
+  /**
+   * Forward an email
+   */
+  async forward(emailId: string, body: ForwardEmailRequest): Promise<Email> {
+    return this.client.post<Email>(`/emails/${emailId}/forward`, body);
+  }
+
+  /**
+   * Search emails
+   */
+  async search(params: SearchEmailsParams): Promise<PaginatedList<Email>> {
+    return this.client.get<PaginatedList<Email>>("/emails", params as Record<string, unknown>);
   }
 }

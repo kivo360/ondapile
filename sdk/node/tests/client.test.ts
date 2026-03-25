@@ -502,6 +502,156 @@ describe("Ondapile SDK", () => {
       expect(url).toContain("folder=INBOX");
       expect(url).toContain("has_attachments=true");
     });
+
+    it("should reply to an email", async () => {
+      const mockEmail: Email = {
+        object: "email",
+        id: "eml_reply",
+        account_id: "acc_xxx",
+        provider: "GMAIL",
+        provider_id: { message_id: "msg-id", thread_id: "thread-id" },
+        subject: "Re: Test Subject",
+        body: "<p>Reply content</p>",
+        body_plain: "Reply content",
+        from_attendee: {
+          display_name: "Sender",
+          identifier: "sender@example.com",
+          identifier_type: "EMAIL_ADDRESS",
+        },
+        to_attendees: [
+          {
+            display_name: "Recipient",
+            identifier: "recipient@example.com",
+            identifier_type: "EMAIL_ADDRESS",
+          },
+        ],
+        cc_attendees: [],
+        bcc_attendees: [],
+        reply_to_attendees: [],
+        date: "2025-03-19T10:00:00Z",
+        has_attachments: false,
+        attachments: [],
+        folders: ["SENT"],
+        role: "SENT",
+        read: true,
+        read_date: "2025-03-19T10:00:00Z",
+        is_complete: true,
+        headers: [],
+        tracking: { opens: 0, first_opened_at: null, clicks: 0, links_clicked: [] },
+        metadata: {},
+      };
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockEmail),
+      });
+
+      const client = new OndapileClient({ apiKey, baseUrl });
+      const result = await client.emails.reply("eml_xxx", {
+        account_id: "acc_xxx",
+        body_html: "<p>Reply content</p>",
+      });
+
+      expect(result.subject).toBe("Re: Test Subject");
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${baseUrl}/api/v1/emails/eml_xxx/reply`,
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            account_id: "acc_xxx",
+            body_html: "<p>Reply content</p>",
+          }),
+        })
+      );
+    });
+
+    it("should forward an email", async () => {
+      const mockEmail: Email = {
+        object: "email",
+        id: "eml_fwd",
+        account_id: "acc_xxx",
+        provider: "GMAIL",
+        provider_id: { message_id: "msg-id", thread_id: "thread-id" },
+        subject: "Fwd: Test Subject",
+        body: "<p>Forwarded content</p>",
+        body_plain: "Forwarded content",
+        from_attendee: {
+          display_name: "Sender",
+          identifier: "sender@example.com",
+          identifier_type: "EMAIL_ADDRESS",
+        },
+        to_attendees: [
+          {
+            display_name: "ForwardRecipient",
+            identifier: "forward@example.com",
+            identifier_type: "EMAIL_ADDRESS",
+          },
+        ],
+        cc_attendees: [],
+        bcc_attendees: [],
+        reply_to_attendees: [],
+        date: "2025-03-19T10:00:00Z",
+        has_attachments: false,
+        attachments: [],
+        folders: ["SENT"],
+        role: "SENT",
+        read: true,
+        read_date: "2025-03-19T10:00:00Z",
+        is_complete: true,
+        headers: [],
+        tracking: { opens: 0, first_opened_at: null, clicks: 0, links_clicked: [] },
+        metadata: {},
+      };
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockEmail),
+      });
+
+      const client = new OndapileClient({ apiKey, baseUrl });
+      const result = await client.emails.forward("eml_xxx", {
+        account_id: "acc_xxx",
+        to: [{ identifier: "forward@example.com", display_name: "ForwardRecipient" }],
+        body_html: "<p>Forwarded content</p>",
+      });
+
+      expect(result.subject).toBe("Fwd: Test Subject");
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${baseUrl}/api/v1/emails/eml_xxx/forward`,
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            account_id: "acc_xxx",
+            to: [{ identifier: "forward@example.com", display_name: "ForwardRecipient" }],
+            body_html: "<p>Forwarded content</p>",
+          }),
+        })
+      );
+    });
+
+    it("should search emails with query", async () => {
+      const mockResponse: PaginatedList<Email> = {
+        object: "list",
+        items: [],
+        cursor: null,
+        has_more: false,
+      };
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const client = new OndapileClient({ apiKey, baseUrl });
+      await client.emails.search({
+        account_id: "acc_xxx",
+        q: "test query",
+      });
+
+      const url = fetchMock.mock.calls[0][0];
+      expect(url).toMatch(/q=test[%20+]query/);
+      expect(url).toContain("account_id=acc_xxx");
+    });
   });
 
   describe("CalendarsClient", () => {

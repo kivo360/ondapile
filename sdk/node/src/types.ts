@@ -427,6 +427,26 @@ export interface SendEmailRequest {
   };
 }
 
+export interface ReplyEmailRequest {
+  account_id: string;
+  body_html: string;
+  body_plain?: string;
+  to?: EmailAttendee[];
+  cc?: EmailAttendee[];
+  bcc?: EmailAttendee[];
+  attachments?: AttachmentUpload[];
+}
+
+export interface ForwardEmailRequest {
+  account_id: string;
+  to: EmailAttendee[];
+  body_html?: string;
+  body_plain?: string;
+  cc?: EmailAttendee[];
+  bcc?: EmailAttendee[];
+  attachments?: AttachmentUpload[];
+}
+
 export interface UpdateEmailRequest {
   folders?: string[];
   read?: boolean;
@@ -509,6 +529,10 @@ export interface ListEmailsParams {
   read?: boolean;
   cursor?: string;
   limit?: number;
+}
+
+export interface SearchEmailsParams extends ListEmailsParams {
+  q: string;
 }
 
 export interface ListCalendarsParams {
