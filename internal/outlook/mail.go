@@ -223,3 +223,246 @@ func buildGraphEmailQuery(opts adapter.ListEmailOpts) string {
 
 	return strings.Join(parts, "&")
 }
+
+// ListFolders lists the mail folders from Outlook.
+func (a *OutlookAdapter) ListFolders(ctx context.Context, accountID string) ([]string, error) {
+    client, err := a.httpClient(ctx, accountID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+    }
+
+    var result map[string]interface{}
+    if err := graphGet(client, "/me/mailFolders", &result); err != nil {
+        return nil, fmt.Errorf("failed to list folders: %w", err)
+    }
+
+    var folders []string
+    if value, ok := result["value"].([]interface{}); ok {
+        for _, item := range value {
+            if folder, ok := item.(map[string]interface{}); ok {
+                if displayName, ok := folder["displayName"].(string); ok {
+                    folders = append(folders, displayName)
+                }
+            }
+        }
+    }
+
+    return folders, nil
+}
+
+// DeleteEmailProvider deletes an email from Outlook.
+func (a *OutlookAdapter) DeleteEmailProvider(ctx context.Context, accountID string, emailID string) error {
+    client, err := a.httpClient(ctx, accountID)
+    if err != nil {
+        return fmt.Errorf("failed to create HTTP client: %w", err)
+    }
+
+    path := fmt.Sprintf("/me/messages/%s", emailID)
+    if err := graphDelete(client, path); err != nil {
+        return fmt.Errorf("failed to delete email: %w", err)
+    }
+
+    return nil
+}
+
+// UpdateEmailProvider updates an email in Outlook (read status, starred, folder).
+func (a *OutlookAdapter) UpdateEmailProvider(ctx context.Context, accountID string, emailID string, opts adapter.UpdateEmailOpts) error {
+    client, err := a.httpClient(ctx, accountID)
+    if err != nil {
+        return fmt.Errorf("failed to create HTTP client: %w", err)
+    }
+
+    // Handle folder move separately (requires POST to /move)
+    if opts.Folder != nil {
+        moveBody := map[string]interface{}{
+            "destinationId": *opts.Folder,
+        }
+        path := fmt.Sprintf("/me/messages/%s/move", emailID)
+        if err := graphPost(client, path, moveBody, nil); err != nil {
+            return fmt.Errorf("failed to move email: %w", err)
+        }
+    }
+
+    // Build PATCH body for read and starred status
+    patchBody := make(map[string]interface{})
+    
+    if opts.Read != nil {
+        patchBody["isRead"] = *opts.Read
+    }
+    
+    if opts.Starred != nil {
+        if *opts.Starred {
+            patchBody["flag"] = map[string]interface{}{"flagStatus": "flagged"}
+        } else {
+            patchBody["flag"] = map[string]interface{}{"flagStatus": "notFlagged"}
+        }
+    }
+
+    // Apply PATCH if there are changes
+    if len(patchBody) > 0 {
+        path := fmt.Sprintf("/me/messages/%s", emailID)
+        if err := graphPatch(client, path, patchBody, nil); err != nil {
+            return fmt.Errorf("failed to update email: %w", err)
+        }
+    }
+
+    return nil
+}
+
+// ReplyEmail sends a reply to an email via Microsoft Graph API.
+func (a *OutlookAdapter) ReplyEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+    client, err := a.httpClient(ctx, accountID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+    }
+
+    // Build reply body
+    replyBody := buildGraphReplyBody(req)
+    
+    path := fmt.Sprintf("/me/messages/%s/reply", emailID)
+    if err := graphPost(client, path, replyBody, nil); err != nil {
+        return nil, fmt.Errorf("failed to send reply: %w", err)
+    }
+
+    // Graph API's /reply returns 202 Accepted with no body
+    // Construct return Email from request fields
+    now := now()
+    newEmailID := uuid.New().String()
+
+    email := &model.Email{
+        Object:     "email",
+        ID:         newEmailID,
+        AccountID:  accountID,
+        Provider:   a.Name(),
+        ProviderID: &model.EmailProviderID{
+            MessageID: generateID(),
+        },
+        Subject:    "Re: " + req.Subject,
+        Body:       req.BodyHTML,
+        BodyPlain:  req.BodyPlain,
+        Date:       now,
+        Folders:    []string{model.FolderSent},
+        Role:       model.FolderSent,
+        Read:       true,
+        IsComplete: true,
+    }
+
+    // Add recipients
+    for _, to := range req.To {
+        email.ToAttendees = append(email.ToAttendees, model.EmailAttendee{
+            DisplayName:    to.DisplayName,
+            Identifier:     to.Identifier,
+            IdentifierType: string(model.IdentifierTypeEmailAddress),
+        })
+    }
+
+    if a.dispatcher != nil {
+        a.dispatcher.Dispatch(ctx, model.EventEmailSent, email)
+    }
+
+    return email, nil
+}
+
+// ForwardEmail forwards an email via Microsoft Graph API.
+func (a *OutlookAdapter) ForwardEmail(ctx context.Context, accountID string, emailID string, req adapter.SendEmailRequest) (*model.Email, error) {
+    client, err := a.httpClient(ctx, accountID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+    }
+
+    // Build forward body
+    forwardBody := buildGraphForwardBody(req)
+    
+    path := fmt.Sprintf("/me/messages/%s/forward", emailID)
+    if err := graphPost(client, path, forwardBody, nil); err != nil {
+        return nil, fmt.Errorf("failed to forward email: %w", err)
+    }
+
+    // Graph API's /forward returns 202 Accepted with no body
+    // Construct return Email from request fields
+    now := now()
+    newEmailID := uuid.New().String()
+
+    email := &model.Email{
+        Object:     "email",
+        ID:         newEmailID,
+        AccountID:  accountID,
+        Provider:   a.Name(),
+        ProviderID: &model.EmailProviderID{
+            MessageID: generateID(),
+        },
+        Subject:    "Fwd: " + req.Subject,
+        Body:       req.BodyHTML,
+        BodyPlain:  req.BodyPlain,
+        Date:       now,
+        Folders:    []string{model.FolderSent},
+        Role:       model.FolderSent,
+        Read:       true,
+        IsComplete: true,
+    }
+
+    // Add recipients
+    for _, to := range req.To {
+        email.ToAttendees = append(email.ToAttendees, model.EmailAttendee{
+            DisplayName:    to.DisplayName,
+            Identifier:     to.Identifier,
+            IdentifierType: string(model.IdentifierTypeEmailAddress),
+        })
+    }
+
+    if a.dispatcher != nil {
+        a.dispatcher.Dispatch(ctx, model.EventEmailSent, email)
+    }
+
+    return email, nil
+}
+
+// Helper functions for reply and forward
+
+func buildGraphReplyBody(req adapter.SendEmailRequest) map[string]interface{} {
+    body := map[string]interface{}{}
+    
+    // Add comment (reply body)
+    if req.BodyHTML != "" {
+        body["comment"] = req.BodyHTML
+    } else if req.BodyPlain != "" {
+        body["comment"] = req.BodyPlain
+    }
+
+    // Build message with recipients if provided
+    message := map[string]interface{}{}
+    
+    if len(req.To) > 0 {
+        message["toRecipients"] = convertEmailAttendeesToRecipients(req.To)
+    }
+    if len(req.CC) > 0 {
+        message["ccRecipients"] = convertEmailAttendeesToRecipients(req.CC)
+    }
+    
+    if len(message) > 0 {
+        body["message"] = message
+    }
+    
+    return body
+}
+
+func buildGraphForwardBody(req adapter.SendEmailRequest) map[string]interface{} {
+    body := map[string]interface{}{}
+    
+    // Add comment (optional body)
+    if req.BodyHTML != "" {
+        body["comment"] = req.BodyHTML
+    } else if req.BodyPlain != "" {
+        body["comment"] = req.BodyPlain
+    }
+
+    // Add recipients
+    if len(req.To) > 0 {
+        body["toRecipients"] = convertEmailAttendeesToRecipients(req.To)
+    }
+    if len(req.CC) > 0 {
+        body["ccRecipients"] = convertEmailAttendeesToRecipients(req.CC)
+    }
+
+    return body
+}
